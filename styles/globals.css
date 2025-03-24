@@ -1,0 +1,13 @@
+body {
+  font-family: Helvetica, sans-serif;
+  line-height: 1.6;
+  padding: 2rem;
+  background: #fff;
+  color: #111;
+}
+a {
+  text-decoration: underline;
+}
+h1, h2 {
+  margin-bottom: 1rem;
+}
