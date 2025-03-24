@@ -8,6 +8,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 export default function Admin() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -45,15 +46,27 @@ export default function Admin() {
       return;
     }
 
-    const storageRef = ref(storage, `tunes/requests/${reqId}.json`);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    await updateRequest(reqId, 'downloadUrl', url);
+    try {
+      const storageRef = ref(storage, `tunes/requests/${reqId}.json`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, 'customRequests', reqId), {
+        downloadUrl: url
+      });
+      setRequests((prev) =>
+        prev.map((r) => (r.id === reqId ? { ...r, downloadUrl: url } : r))
+      );
+      setMessage(`Upload success for ${reqId}`);
+    } catch (err) {
+      console.error('Upload failed', err);
+      setMessage(`Upload failed for ${reqId}`);
+    }
   };
 
   return (
     <main>
       <h1>Admin Panel</h1>
+      {message && <p style={{color: 'green'}}>{message}</p>}
       {loading ? (
         <p>Loading...</p>
       ) : requests.length === 0 ? (
