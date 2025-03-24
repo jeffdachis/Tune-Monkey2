@@ -28,24 +28,20 @@ export default function Dashboard() {
 
   return (
     <main>
-      <h1>My Dashboard</h1>
+      <h1>My Dashboard (Debug Mode)</h1>
       {loading ? (
         <p>Loading...</p>
       ) : requests.length === 0 ? (
-        <p>No requests yet.</p>
+        <p>No requests found.</p>
       ) : (
         <ul>
-          {requests.map(req => (
-            <li key={req.id}>
-              <strong>Motor:</strong> {req.motor} | <strong>Controller:</strong> {req.controller} | <strong>Battery:</strong> {req.battery}<br/>
-              <strong>Goals:</strong> {req.goals}<br/>
-              <strong>Status:</strong> {req.status || 'pending'}<br/>
+          {requests.map((req) => (
+            <li key={req.id} style={{ marginBottom: '2rem' }}>
+              <pre>{JSON.stringify(req, null, 2)}</pre>
               {req.status === 'delivered' && req.downloadUrl && (
-                <p>
-                  <a href={req.downloadUrl} target="_blank" rel="noopener noreferrer">
-                    🔽 Download Your Tune
-                  </a>
-                </p>
+                <a href={req.downloadUrl} target="_blank" rel="noopener noreferrer">
+                  🔽 Download Your Tune
+                </a>
               )}
               <hr />
             </li>
