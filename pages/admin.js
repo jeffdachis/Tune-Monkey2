@@ -51,19 +51,20 @@ export default function Admin() {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
 
-      // Store downloadUrl AND mark as delivered if not already
       await updateDoc(doc(db, 'customRequests', reqId), {
         downloadUrl: url,
-        status: 'delivered'
+        status: 'delivered',
       });
 
       setRequests((prev) =>
-        prev.map((r) => (r.id === reqId ? { ...r, downloadUrl: url, status: 'delivered' } : r))
+        prev.map((r) =>
+          r.id === reqId ? { ...r, downloadUrl: url, status: 'delivered' } : r
+        )
       );
 
       setMessage(`✅ File uploaded & delivered for ${reqId}`);
     } catch (err) {
-      console.error('Upload failed', err);
+      console.error('❌ Upload failed:', err);
       setMessage(`❌ Upload failed for ${reqId}`);
     }
   };
@@ -71,7 +72,7 @@ export default function Admin() {
   return (
     <main>
       <h1>Admin Panel</h1>
-      {message && <p style={{color: 'green'}}>{message}</p>}
+      {message && <p style={{ color: 'green' }}>{message}</p>}
       {loading ? (
         <p>Loading...</p>
       ) : requests.length === 0 ? (
@@ -104,8 +105,8 @@ export default function Admin() {
                 accept=".json"
                 onChange={(e) => handleFileUpload(e, req.id)}
               /><br />
-              {req.status === 'delivered' && req.downloadUrl && (
-                <p style={{color: 'green'}}>✅ Delivered to user</p>
+              {(req.status === 'delivered' && req.downloadUrl) && (
+                <p style={{ color: 'green' }}>✅ Delivered to user</p>
               )}
               <hr />
             </li>
