@@ -51,22 +51,42 @@ export default function Admin() {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
 
+      // Save as uploadUrl (staging area)
       await updateDoc(doc(db, 'customRequests', reqId), {
-        downloadUrl: url,
-        status: 'delivered',
+        uploadUrl: url
       });
 
       setRequests((prev) =>
         prev.map((r) =>
-          r.id === reqId ? { ...r, downloadUrl: url, status: 'delivered' } : r
+          r.id === reqId ? { ...r, uploadUrl: url } : r
         )
       );
 
-      setMessage(`✅ File uploaded & delivered for ${reqId}`);
+      setMessage(`✅ File uploaded for ${reqId}. Ready to send.`);
     } catch (err) {
       console.error('❌ Upload failed:', err);
       setMessage(`❌ Upload failed for ${reqId}`);
     }
+  };
+
+  const handleSendFile = async (reqId, uploadUrl) => {
+    if (!uploadUrl) {
+      alert("No uploaded file to send.");
+      return;
+    }
+
+    await updateDoc(doc(db, 'customRequests', reqId), {
+      downloadUrl: uploadUrl,
+      status: 'delivered'
+    });
+
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === reqId ? { ...r, downloadUrl: uploadUrl, status: 'delivered' } : r
+      )
+    );
+
+    setMessage(`📤 File sent to user for ${reqId}`);
   };
 
   return (
@@ -99,12 +119,17 @@ export default function Admin() {
                 value={req.downloadUrl || ''}
                 onChange={(e) => updateRequest(req.id, 'downloadUrl', e.target.value)}
               /><br />
-              <strong>Or Upload File:</strong>
+              <strong>Upload File:</strong>
               <input
                 type="file"
                 accept=".json"
                 onChange={(e) => handleFileUpload(e, req.id)}
               /><br />
+              {req.uploadUrl && !req.downloadUrl && (
+                <button onClick={() => handleSendFile(req.id, req.uploadUrl)}>
+                  ✅ Send File to User
+                </button>
+              )}
               {(req.status === 'delivered' && req.downloadUrl) && (
                 <p style={{ color: 'green' }}>✅ Delivered to user</p>
               )}
