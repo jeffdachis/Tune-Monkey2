@@ -50,16 +50,21 @@ export default function Admin() {
       const storageRef = ref(storage, `tunes/requests/${reqId}.json`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
+
+      // Store downloadUrl AND mark as delivered if not already
       await updateDoc(doc(db, 'customRequests', reqId), {
-        downloadUrl: url
+        downloadUrl: url,
+        status: 'delivered'
       });
+
       setRequests((prev) =>
-        prev.map((r) => (r.id === reqId ? { ...r, downloadUrl: url } : r))
+        prev.map((r) => (r.id === reqId ? { ...r, downloadUrl: url, status: 'delivered' } : r))
       );
-      setMessage(`Upload success for ${reqId}`);
+
+      setMessage(`✅ File uploaded & delivered for ${reqId}`);
     } catch (err) {
       console.error('Upload failed', err);
-      setMessage(`Upload failed for ${reqId}`);
+      setMessage(`❌ Upload failed for ${reqId}`);
     }
   };
 
@@ -99,6 +104,9 @@ export default function Admin() {
                 accept=".json"
                 onChange={(e) => handleFileUpload(e, req.id)}
               /><br />
+              {req.status === 'delivered' && req.downloadUrl && (
+                <p style={{color: 'green'}}>✅ Delivered to user</p>
+              )}
               <hr />
             </li>
           ))}
