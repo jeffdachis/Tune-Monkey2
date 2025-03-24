@@ -39,7 +39,14 @@ export default function Dashboard() {
             <li key={req.id}>
               <strong>Motor:</strong> {req.motor} | <strong>Controller:</strong> {req.controller} | <strong>Battery:</strong> {req.battery}<br/>
               <strong>Goals:</strong> {req.goals}<br/>
-              <strong>PAS:</strong> {req.pas ? 'Yes' : 'No'}, <strong>Regen:</strong> {req.regen ? 'Yes' : 'No'}, <strong>FW:</strong> {req.fw ? 'Yes' : 'No'}, <strong>Thermal:</strong> {req.thermal ? 'Yes' : 'No'}
+              <strong>Status:</strong> {req.status || 'pending'}<br/>
+              {req.status === 'delivered' && req.downloadUrl && (
+                <p>
+                  <a href={req.downloadUrl} target="_blank" rel="noopener noreferrer">
+                    🔽 Download Your Tune
+                  </a>
+                </p>
+              )}
               <hr />
             </li>
           ))}
