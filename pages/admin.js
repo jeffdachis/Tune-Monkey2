@@ -10,7 +10,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const ADMIN_EMAIL = "YOUR_EMAIL_HERE"; // Change this to your actual email
+  const ADMIN_EMAIL = "jeffreydachis@gmail.com"; // Change this to your actual email
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
