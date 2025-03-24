@@ -1,38 +1,54 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { db, auth } from '../lib/firebase';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { db, auth, storage } from '../lib/firebase';
+import { collection, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function Admin() {
   const [requests, setRequests] = useState([]);
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const ADMIN_EMAIL = "jeffreydachis@gmail.com"; // Change this to your actual email
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      if (!u || u.email !== ADMIN_EMAIL) {
+      if (!u) {
         router.push('/');
-      } else {
-        setUser(u);
-        const snapshot = await getDocs(collection(db, 'customRequests'));
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setRequests(data);
-        setLoading(false);
+        return;
       }
+      const userRef = doc(db, 'users', u.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists() || !userSnap.data().isAdmin) {
+        router.push('/');
+        return;
+      }
+      const snapshot = await getDocs(collection(db, 'customRequests'));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRequests(data);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [router]);
 
   const updateRequest = async (id, field, value) => {
-    const ref = doc(db, 'customRequests', id);
-    await updateDoc(ref, { [field]: value });
+    const refDoc = doc(db, 'customRequests', id);
+    await updateDoc(refDoc, { [field]: value });
     setRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
     );
+  };
+
+  const handleFileUpload = async (e, reqId) => {
+    const file = e.target.files[0];
+    if (!file || file.type !== "application/json") {
+      alert("Only .json files allowed.");
+      return;
+    }
+
+    const storageRef = ref(storage, `tunes/requests/${reqId}.json`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    await updateRequest(reqId, 'downloadUrl', url);
   };
 
   return (
@@ -58,11 +74,17 @@ export default function Admin() {
                 <option value="in-progress">In Progress</option>
                 <option value="delivered">Delivered</option>
               </select><br />
-              <strong>Download URL:</strong>
+              <strong>Manual URL:</strong>
               <input
                 type="text"
                 value={req.downloadUrl || ''}
                 onChange={(e) => updateRequest(req.id, 'downloadUrl', e.target.value)}
+              /><br />
+              <strong>Or Upload File:</strong>
+              <input
+                type="file"
+                accept=".json"
+                onChange={(e) => handleFileUpload(e, req.id)}
               /><br />
               <hr />
             </li>
