@@ -1,39 +1,50 @@
 import { useEffect, useState } from 'react';
-import { db } from '../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { useRouter } from 'next/router';
+import { db, auth } from '../lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function Dashboard() {
   const [requests, setRequests] = useState([]);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    async function fetchRequests() {
-      const snapshot = await getDocs(collection(db, 'customRequests'));
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRequests(data);
-    }
-    fetchRequests();
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        router.push('/login');
+      } else {
+        setUser(u);
+        const q = query(collection(db, 'customRequests'), where('userId', '==', u.uid));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setRequests(data);
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   return (
     <main>
       <h1>My Dashboard</h1>
-      <section>
-        <h2>Custom Tune Requests</h2>
-        {requests.length === 0 ? (
-          <p>No requests yet.</p>
-        ) : (
-          <ul>
-            {requests.map(req => (
-              <li key={req.id}>
-                <strong>Motor:</strong> {req.motor} | <strong>Controller:</strong> {req.controller} | <strong>Battery:</strong> {req.battery}<br/>
-                <strong>Goals:</strong> {req.goals}<br/>
-                <strong>PAS:</strong> {req.pas ? 'Yes' : 'No'}, <strong>Regen:</strong> {req.regen ? 'Yes' : 'No'}, <strong>FW:</strong> {req.fw ? 'Yes' : 'No'}, <strong>Thermal:</strong> {req.thermal ? 'Yes' : 'No'}
-                <hr />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {loading ? (
+        <p>Loading...</p>
+      ) : requests.length === 0 ? (
+        <p>No requests yet.</p>
+      ) : (
+        <ul>
+          {requests.map(req => (
+            <li key={req.id}>
+              <strong>Motor:</strong> {req.motor} | <strong>Controller:</strong> {req.controller} | <strong>Battery:</strong> {req.battery}<br/>
+              <strong>Goals:</strong> {req.goals}<br/>
+              <strong>PAS:</strong> {req.pas ? 'Yes' : 'No'}, <strong>Regen:</strong> {req.regen ? 'Yes' : 'No'}, <strong>FW:</strong> {req.fw ? 'Yes' : 'No'}, <strong>Thermal:</strong> {req.thermal ? 'Yes' : 'No'}
+              <hr />
+            </li>
+          ))}
+        </ul>
+      )}
       <a href="/">Back to Home</a>
     </main>
   );
