@@ -32,11 +32,17 @@ export default function Admin() {
   }, [router]);
 
   const updateRequest = async (id, field, value) => {
-    const refDoc = doc(db, 'customRequests', id);
-    await updateDoc(refDoc, { [field]: value });
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
-    );
+    try {
+      const refDoc = doc(db, 'customRequests', id);
+      await updateDoc(refDoc, { [field]: value });
+      console.log(`Updated ${field} for ${id}`);
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+      );
+    } catch (err) {
+      console.error(`❌ Failed to update ${field} for ${id}:`, err);
+      setMessage(`❌ Firestore update failed for ${id}`);
+    }
   };
 
   const handleFileUpload = async (e, reqId) => {
@@ -47,25 +53,25 @@ export default function Admin() {
     }
 
     try {
+      console.log(`Uploading file for request: ${reqId}`);
       const storageRef = ref(storage, `tunes/requests/${reqId}.json`);
       await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      console.log("✅ Upload complete");
 
-      // Save as uploadUrl (staging area)
-      await updateDoc(doc(db, 'customRequests', reqId), {
-        uploadUrl: url
-      });
+      const url = await getDownloadURL(storageRef);
+      console.log("✅ Download URL:", url);
+
+      const refDoc = doc(db, 'customRequests', reqId);
+      await updateDoc(refDoc, { uploadUrl: url });
 
       setRequests((prev) =>
-        prev.map((r) =>
-          r.id === reqId ? { ...r, uploadUrl: url } : r
-        )
+        prev.map((r) => (r.id === reqId ? { ...r, uploadUrl: url } : r))
       );
 
-      setMessage(`✅ File uploaded for ${reqId}. Ready to send.`);
+      setMessage(`✅ File uploaded and uploadUrl set for ${reqId}`);
     } catch (err) {
-      console.error('❌ Upload failed:', err);
-      setMessage(`❌ Upload failed for ${reqId}`);
+      console.error("❌ Upload or Firestore update failed:", err);
+      setMessage(`❌ Upload or Firestore error for ${reqId}`);
     }
   };
 
@@ -75,23 +81,29 @@ export default function Admin() {
       return;
     }
 
-    await updateDoc(doc(db, 'customRequests', reqId), {
-      downloadUrl: uploadUrl,
-      status: 'delivered'
-    });
+    try {
+      console.log(`Sending file to user for request: ${reqId}`);
+      await updateDoc(doc(db, 'customRequests', reqId), {
+        downloadUrl: uploadUrl,
+        status: 'delivered'
+      });
 
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === reqId ? { ...r, downloadUrl: uploadUrl, status: 'delivered' } : r
-      )
-    );
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === reqId ? { ...r, downloadUrl: uploadUrl, status: 'delivered' } : r
+        )
+      );
 
-    setMessage(`📤 File sent to user for ${reqId}`);
+      setMessage(`📤 File delivered for ${reqId}`);
+    } catch (err) {
+      console.error("❌ Failed to deliver file:", err);
+      setMessage(`❌ Send failed for ${reqId}`);
+    }
   };
 
   return (
     <main>
-      <h1>Admin Panel</h1>
+      <h1>Admin Panel (Debug Mode)</h1>
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {loading ? (
         <p>Loading...</p>
