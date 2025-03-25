@@ -5,6 +5,24 @@ import { collection, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function retryGetDownloadURL(ref, maxRetries = 5, delay = 1000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const url = await getDownloadURL(ref);
+      console.log("✅ Download URL ready on attempt", i + 1);
+      return url;
+    } catch (err) {
+      console.warn(`Attempt ${i + 1} failed:`, err.message);
+      await sleep(delay);
+    }
+  }
+  throw new Error("Exceeded max retries for getDownloadURL");
+}
+
 export default function Admin() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,13 +53,13 @@ export default function Admin() {
     try {
       const refDoc = doc(db, 'customRequests', id);
       await updateDoc(refDoc, { [field]: value });
-      console.log(`Updated ${field} for ${id}`);
+      console.log(\`Updated \${field} for \${id}\`);
       setRequests((prev) =>
         prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
       );
     } catch (err) {
-      console.error(`❌ Failed to update ${field} for ${id}:`, err);
-      setMessage(`❌ Firestore update failed for ${id}`);
+      console.error(\`❌ Failed to update \${field} for \${id}:\`, err);
+      setMessage(\`❌ Firestore update failed for \${id}\`);
     }
   };
 
@@ -53,13 +71,13 @@ export default function Admin() {
     }
 
     try {
-      console.log(`Uploading file for request: ${reqId}`);
-      const storageRef = ref(storage, `tunes/requests/${reqId}.json`);
+      console.log(\`Uploading file for request: \${reqId}\`);
+      const storageRef = ref(storage, \`tunes/requests/\${reqId}.json\`);
       await uploadBytes(storageRef, file);
       console.log("✅ Upload complete");
 
-      const url = await getDownloadURL(storageRef);
-      console.log("✅ Download URL:", url);
+      const url = await retryGetDownloadURL(storageRef);
+      console.log("✅ Final Download URL:", url);
 
       const refDoc = doc(db, 'customRequests', reqId);
       await updateDoc(refDoc, { uploadUrl: url });
@@ -68,10 +86,10 @@ export default function Admin() {
         prev.map((r) => (r.id === reqId ? { ...r, uploadUrl: url } : r))
       );
 
-      setMessage(`✅ File uploaded and uploadUrl set for ${reqId}`);
+      setMessage(\`✅ File uploaded and uploadUrl set for \${reqId}\`);
     } catch (err) {
-      console.error("❌ Upload or Firestore update failed:", err);
-      setMessage(`❌ Upload or Firestore error for ${reqId}`);
+      console.error("❌ Upload or getDownloadURL failed:", err);
+      setMessage(\`❌ Upload or Firestore error for \${reqId}\`);
     }
   };
 
@@ -82,7 +100,7 @@ export default function Admin() {
     }
 
     try {
-      console.log(`Sending file to user for request: ${reqId}`);
+      console.log(\`Sending file to user for request: \${reqId}\`);
       await updateDoc(doc(db, 'customRequests', reqId), {
         downloadUrl: uploadUrl,
         status: 'delivered'
@@ -94,16 +112,16 @@ export default function Admin() {
         )
       );
 
-      setMessage(`📤 File delivered for ${reqId}`);
+      setMessage(\`📤 File delivered for \${reqId}\`);
     } catch (err) {
       console.error("❌ Failed to deliver file:", err);
-      setMessage(`❌ Send failed for ${reqId}`);
+      setMessage(\`❌ Send failed for \${reqId}\`);
     }
   };
 
   return (
     <main>
-      <h1>Admin Panel (Debug Mode)</h1>
+      <h1>Admin Panel (Retry Mode)</h1>
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {loading ? (
         <p>Loading...</p>
