@@ -19,9 +19,9 @@ export default function RequestForm() {
   };
 
   const handleSubmit = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user || userError) {
       router.push('/login');
       return;
     }
@@ -34,7 +34,7 @@ export default function RequestForm() {
     }]);
 
     if (error) {
-      console.error('Insert error:', error.message);
+      console.error('[SUPABASE INSERT ERROR]', error.message);
       setErrorMessage('Error submitting request: ' + error.message);
     } else {
       setSubmitted(true);
