@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { UploadButton } from '@uploadthing/react';
+import { uploadFiles } from '../lib/uploadthingClient'; // ✅ correct source
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
+  const [file, setFile] = useState(null);
   const [selectedRequestId, setSelectedRequestId] = useState('');
   const [delivered, setDelivered] = useState(false);
 
-  // FETCH CUSTOM REQUESTS
   useEffect(() => {
     const fetchRequests = async () => {
       const { data, error } = await supabase
@@ -25,23 +25,38 @@ export default function AdminPanel() {
     fetchRequests();
   }, []);
 
-  const handleUploadComplete = async (res) => {
-    if (!res || !res[0]) {
-      console.error("Upload failed");
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async () => {
+    if (!file || !selectedRequestId) {
+      alert("Missing file or request selection");
       return;
     }
 
-    const { url } = res[0];
+    try {
+      const res = await uploadFiles("uploadTune", { files: [file] });
 
-    const { error } = await supabase
-      .from('custom_requests')
-      .update({ uploadUrl: url, status: 'delivered' })
-      .eq('id', selectedRequestId);
+      if (!res || !res[0] || !res[0].url) {
+        throw new Error("Upload failed");
+      }
 
-    if (error) {
-      console.error("Error updating Supabase:", error);
-    } else {
-      setDelivered(true);
+      const { url } = res[0];
+
+      const { error } = await supabase
+        .from('custom_requests')
+        .update({ uploadUrl: url, status: 'delivered' })
+        .eq('id', selectedRequestId);
+
+      if (error) {
+        console.error("Error updating Supabase:", error);
+      } else {
+        setDelivered(true);
+      }
+
+    } catch (err) {
+      console.error("Upload error:", err);
     }
   };
 
@@ -54,7 +69,6 @@ export default function AdminPanel() {
           <li key={req.id} style={{ marginBottom: 10 }}>
             <strong>ID:</strong> {req.id}<br />
             <strong>User:</strong> {req.email || req.user_id}<br />
-            <strong>Motor:</strong> {req.motor} | <strong>Controller:</strong> {req.controller}<br />
             <strong>Status:</strong> {req.status}<br />
             <button onClick={() => setSelectedRequestId(req.id)}>Select</button>
           </li>
@@ -63,12 +77,9 @@ export default function AdminPanel() {
 
       {selectedRequestId && (
         <>
-          <p>Selected Request: {selectedRequestId}</p>
-          <UploadButton
-            endpoint="uploadTune"
-            onClientUploadComplete={handleUploadComplete}
-            onUploadError={(e) => console.error('Upload error', e)}
-          />
+          <p>Selected Request ID: {selectedRequestId}</p>
+          <input type="file" accept=".json" onChange={handleFileChange} />
+          <button onClick={handleUpload}>Upload</button>
           {delivered && <p>✅ Delivered!</p>}
         </>
       )}
