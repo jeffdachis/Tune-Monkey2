@@ -6,10 +6,9 @@ export default async function handler(req, res) {
   const body = req.body;
   console.log("Dummy Upload body:", body);
 
-  // Fake response
   return res.status(200).json({
-    url: "https://uploadthing.com/dummy/dummy-tune.json",
-    name: "dummy-tune.json",
-    type: "application/json"
+    url: "https://uploadthing.com/dummy/" + encodeURIComponent(body.name),
+    name: body.name,
+    type: body.type,
   });
 }
