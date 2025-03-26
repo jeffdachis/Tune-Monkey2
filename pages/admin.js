@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { UT_API_KEY } from '../uploadthing.config';
+import { genUploader } from "uploadthing/client";
+import type { UploadRouter } from "../api/uploadthing";
+export const { uploadFiles } = genUploader<UploadRouter>();
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
@@ -8,6 +11,7 @@ export default function AdminPanel() {
   const [file, setFile] = useState(null);
   const [uploadUrl, setUploadUrl] = useState('');
   const [delivered, setDelivered] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -23,30 +27,34 @@ export default function AdminPanel() {
   const handleFileChange = (e) => setFile(e.target.files[0]);
 
   const uploadFile = async () => {
-    if (!file || !selectedRequestId) return alert("Missing file or request ID");
-
-    const res = await fetch("https://uploadthing.com/api/upload", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${UT_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name: file.name, type: file.type }),
-    });
-    const { url } = await res.json();
-    await fetch(url, { method: "PUT", body: file });
-    const fileUrl = url.split("?")[0];
-    setUploadUrl(fileUrl);
+    if (!file || !selectedRequestId) {
+      alert("Missing file or request ID");
+      return;
+    }
+    setErrorMsg('');
+    try {
+      const res = await uploadFiles("uploadTune", { files: [file] });
+      console.log("UploadThing response:", res);
+      if (!res || !res[0]?.url) {
+        throw new Error("UploadThing did not return a valid URL");
+      }
+      const fileUrl = res[0].url;
+      setUploadUrl(fileUrl);
+    } catch (error) {
+      console.error("Error during file upload:", error);
+      setErrorMsg(error.message);
+    }
   };
 
   const sendFile = async () => {
-    if (!uploadUrl || !selectedRequestId) return;
-
+    if (!uploadUrl || !selectedRequestId) {
+      alert("Missing file URL or request ID");
+      return;
+    }
     const { error } = await supabase
       .from('custom_requests')
       .update({ downloadUrl: uploadUrl, status: 'delivered' })
       .eq('id', selectedRequestId);
-
     if (!error) {
       setDelivered(true);
     } else {
@@ -61,22 +69,22 @@ export default function AdminPanel() {
       <ul>
         {requests.map((req) => (
           <li key={req.id}>
-            <strong>{req.email}</strong> → {req.tune_type} / {req.battery} / {req.motor}
+            <strong>{req.email}</strong> - {req.tune_type} ({req.battery}, {req.motor})
             <button onClick={() => setSelectedRequestId(req.id)}>Select</button>
           </li>
         ))}
       </ul>
-
       {selectedRequestId && (
         <>
-          <h3>Upload Tune for Request ID: {selectedRequestId}</h3>
-          <input type="file" accept=".json" onChange={handleFileChange} />
+          <h3>For Request ID: {selectedRequestId}</h3>
+          <input type="file" accept=".json" onChange={handleFileChange} /><br />
           <button onClick={uploadFile}>Upload</button>
           {uploadUrl && <p>Uploaded to: {uploadUrl}</p>}
           {uploadUrl && !delivered && <button onClick={sendFile}>Send File to User</button>}
-          {delivered && <p>✅ Delivered!</p>}
+          {delivered && <p style={{ color: 'green' }}>✅ Delivered!</p>}
         </>
       )}
+      {errorMsg && <p style={{ color: 'red' }}>Error: {errorMsg}</p>}
     </main>
   );
 }
