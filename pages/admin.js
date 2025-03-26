@@ -1,47 +1,45 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { UploadButton } from '@uploadthing/react';
 
-export default function Admin() {
-  const [requestId, setRequestId] = useState('');
-  const [file, setFile] = useState(null);
-  const [uploadUrl, setUploadUrl] = useState('');
+export default function AdminPanel() {
+  const [requests, setRequests] = useState([]);
+  const [selectedRequestId, setSelectedRequestId] = useState('');
   const [delivered, setDelivered] = useState(false);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
+  // FETCH CUSTOM REQUESTS
+  useEffect(() => {
+    const fetchRequests = async () => {
+      const { data, error } = await supabase
+        .from('custom_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const uploadFile = async () => {
-    if (!file || !requestId) {
-      alert("Missing file or request ID");
+      if (error) {
+        console.error('Error fetching requests:', error);
+      } else {
+        setRequests(data);
+      }
+    };
+
+    fetchRequests();
+  }, []);
+
+  const handleUploadComplete = async (res) => {
+    if (!res || !res[0]) {
+      console.error("Upload failed");
       return;
     }
 
-    // Simulate upload via dummy endpoint
-    const res = await fetch("/api/uploadthing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: file.name, type: file.type }),
-    });
-
-    const data = await res.json();
-    const fileUrl = data?.url;
-
-    if (!fileUrl) {
-      alert("Upload failed");
-      return;
-    }
-
-    setUploadUrl(fileUrl);
+    const { url } = res[0];
 
     const { error } = await supabase
-      .from("custom_requests")
-      .update({ uploadUrl: fileUrl, status: "delivered" })
-      .eq("id", requestId);
+      .from('custom_requests')
+      .update({ uploadUrl: url, status: 'delivered' })
+      .eq('id', selectedRequestId);
 
     if (error) {
-      console.error("Supabase update failed:", error);
-      alert("Supabase update failed");
+      console.error("Error updating Supabase:", error);
     } else {
       setDelivered(true);
     }
@@ -51,25 +49,29 @@ export default function Admin() {
     <main style={{ padding: 20 }}>
       <h1>Admin Panel</h1>
 
-      <input
-        type="text"
-        placeholder="Request ID"
-        value={requestId}
-        onChange={(e) => setRequestId(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
+      <ul>
+        {requests.map((req) => (
+          <li key={req.id} style={{ marginBottom: 10 }}>
+            <strong>ID:</strong> {req.id}<br />
+            <strong>User:</strong> {req.email || req.user_id}<br />
+            <strong>Motor:</strong> {req.motor} | <strong>Controller:</strong> {req.controller}<br />
+            <strong>Status:</strong> {req.status}<br />
+            <button onClick={() => setSelectedRequestId(req.id)}>Select</button>
+          </li>
+        ))}
+      </ul>
 
-      <input
-        type="file"
-        accept=".json"
-        onChange={handleFileChange}
-        style={{ display: "block", marginBottom: 10 }}
-      />
-
-      <button onClick={uploadFile}>Upload</button>
-
-      {uploadUrl && <p>Uploaded to: {uploadUrl}</p>}
-      {delivered && <p>✅ Delivered!</p>}
+      {selectedRequestId && (
+        <>
+          <p>Selected Request: {selectedRequestId}</p>
+          <UploadButton
+            endpoint="uploadTune"
+            onClientUploadComplete={handleUploadComplete}
+            onUploadError={(e) => console.error('Upload error', e)}
+          />
+          {delivered && <p>✅ Delivered!</p>}
+        </>
+      )}
     </main>
   );
 }
