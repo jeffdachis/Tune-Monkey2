@@ -1,15 +1,18 @@
-import { createUploadthing, type FileRouter } from 'uploadthing/server';
-import { uploadthingMiddleware } from 'uploadthing/server';
+import { createUploadthing, createRouteHandler } from "uploadthing/next";
 
 const f = createUploadthing();
 
 export const uploadRouter = {
-  uploadTune: f({ json: { maxFileSize: '1MB' } })
-    .onUploadComplete(({ file }) => {
-      console.log('Upload complete:', file.url);
-      return { url: file.url, name: file.name, type: file.type };
+  uploadTune: f({ json: { maxFileSize: "4MB" } })
+    .onUploadComplete(async ({ file }) => {
+      console.log("✅ Upload complete:", file);
+      return {
+        url: file.url,
+        name: file.name,
+        type: file.type,
+      };
     }),
 };
 
-export const handler = uploadthingMiddleware({ router: uploadRouter });
-export default handler;
+// Export handler for UploadThing to work
+export const { GET, POST } = createRouteHandler({ router: uploadRouter });
