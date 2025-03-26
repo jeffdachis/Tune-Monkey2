@@ -45,4 +45,18 @@ export default function RequestForm() {
     <main>
       <h1>Request a Custom Tune</h1>
       {submitted ? (
-        <
+        <p>✅ Request submitted!</p>
+      ) : (
+        <>
+          <input name="battery" placeholder="Battery" onChange={handleChange} /><br />
+          <input name="motor" placeholder="Motor" onChange={handleChange} /><br />
+          <input name="controller" placeholder="Controller" onChange={handleChange} /><br />
+          <input name="tune_type" placeholder="Tune Type" onChange={handleChange} /><br />
+          <textarea name="notes" placeholder="Additional Notes" onChange={handleChange} /><br />
+          <button onClick={handleSubmit}>Submit Request</button>
+          {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
+        </>
+      )}
+    </main>
+  );
+}
