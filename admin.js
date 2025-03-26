@@ -1,82 +1,109 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { UT_API_KEY } from '../uploadthing.config';
 
-export default function AdminPanel() {
-  const [requests, setRequests] = useState([]);
-  const [selectedRequestId, setSelectedRequestId] = useState('');
+export default function Admin() {
   const [file, setFile] = useState(null);
   const [uploadUrl, setUploadUrl] = useState('');
+  const [requestId, setRequestId] = useState('');
   const [delivered, setDelivered] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    const fetchRequests = async () => {
-      const { data } = await supabase
-        .from('custom_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setRequests(data || []);
-    };
-    fetchRequests();
-  }, []);
-
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
 
   const uploadFile = async () => {
-    if (!file || !selectedRequestId) return alert("Missing file or request ID");
+    setErrorMsg('');
+    if (!file || !requestId) {
+      alert("Missing file or request ID");
+      return;
+    }
 
-    const res = await fetch("https://uploadthing.com/api/upload", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${UT_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name: file.name, type: file.type }),
-    });
-    const { url } = await res.json();
-    await fetch(url, { method: "PUT", body: file });
-    const fileUrl = url.split("?")[0];
-    setUploadUrl(fileUrl);
+    try {
+      console.log("Initiating file upload for request:", requestId);
+      const res = await fetch("https://uploadthing.com/api/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${UT_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: file.name, type: file.type }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`UploadThing POST failed: ${res.status} ${errText}`);
+      }
+
+      const json = await res.json();
+      console.log("UploadThing response:", json);
+
+      if (!json.url) {
+        throw new Error("UploadThing response did not contain a URL");
+      }
+
+      // PUT the file to the provided URL
+      const putRes = await fetch(json.url, { method: "PUT", body: file });
+      if (!putRes.ok) {
+        const putErr = await putRes.text();
+        throw new Error(`PUT failed: ${putRes.status} ${putErr}`);
+      }
+      
+      const fileUrl = json.url.split("?")[0];
+      console.log("File uploaded, final URL:", fileUrl);
+      setUploadUrl(fileUrl);
+    } catch (error) {
+      console.error("❌ Error during file upload:", error);
+      setErrorMsg(error.message);
+    }
   };
 
   const sendFile = async () => {
-    if (!uploadUrl || !selectedRequestId) return;
+    if (!uploadUrl || !requestId) {
+      alert("Missing file URL or request ID");
+      return;
+    }
 
-    const { error } = await supabase
-      .from('custom_requests')
-      .update({ downloadUrl: uploadUrl, status: 'delivered' })
-      .eq('id', selectedRequestId);
+    try {
+      const { error } = await supabase
+        .from('custom_requests')
+        .update({ downloadUrl: uploadUrl, status: 'delivered' })
+        .eq('id', requestId);
 
-    if (!error) {
+      if (error) {
+        throw error;
+      }
       setDelivered(true);
-    } else {
-      alert("Error delivering file");
+      console.log("File delivery successful for request:", requestId);
+    } catch (err) {
+      console.error("❌ Error delivering file:", err);
+      setErrorMsg("Error delivering file: " + err.message);
     }
   };
 
   return (
     <main>
       <h1>Admin Panel</h1>
-      <h2>Pending Requests</h2>
-      <ul>
-        {requests.map((req) => (
-          <li key={req.id}>
-            <strong>{req.email}</strong> → {req.tune_type} / {req.battery} / {req.motor}
-            <button onClick={() => setSelectedRequestId(req.id)}>Select</button>
-          </li>
-        ))}
-      </ul>
-
-      {selectedRequestId && (
-        <>
-          <h3>Upload Tune for Request ID: {selectedRequestId}</h3>
-          <input type="file" accept=".json" onChange={handleFileChange} />
-          <button onClick={uploadFile}>Upload</button>
-          {uploadUrl && <p>Uploaded to: {uploadUrl}</p>}
-          {uploadUrl && !delivered && <button onClick={sendFile}>Send File to User</button>}
-          {delivered && <p>✅ Delivered!</p>}
-        </>
+      <input
+        type="text"
+        placeholder="Request ID"
+        onChange={(e) => setRequestId(e.target.value)}
+      />
+      <br />
+      <input
+        type="file"
+        accept=".json"
+        onChange={handleFileChange}
+      />
+      <br />
+      <button onClick={uploadFile}>Upload</button>
+      {uploadUrl && <p>Uploaded to: {uploadUrl}</p>}
+      {uploadUrl && !delivered && (
+        <button onClick={sendFile}>Send File to User</button>
       )}
+      {delivered && <p style={{ color: 'green' }}>✅ Delivered!</p>}
+      {errorMsg && <p style={{ color: 'red' }}>Error: {errorMsg}</p>}
     </main>
   );
 }
