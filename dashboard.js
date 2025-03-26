@@ -16,7 +16,7 @@ export default function Dashboard() {
         return;
       }
       setUserEmail(user.email);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('custom_requests')
         .select('*')
         .eq('user_id', user.id)
@@ -44,4 +44,3 @@ export default function Dashboard() {
     </main>
   );
 }
-

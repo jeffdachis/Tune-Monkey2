@@ -11,7 +11,6 @@ export default function RequestForm() {
     notes: ''
   });
   const [submitted, setSubmitted] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
   const router = useRouter();
 
   const handleChange = (e) => {
@@ -19,7 +18,7 @@ export default function RequestForm() {
   };
 
   const handleSubmit = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = (await supabase.auth.getUser()).data.user;
     if (!user) {
       router.push('/login');
       return;
@@ -32,12 +31,7 @@ export default function RequestForm() {
       status: 'pending'
     }]);
 
-    if (error) {
-      console.error('[SUPABASE INSERT ERROR]', error.message);
-      setErrorMessage('Error submitting request: ' + error.message);
-    } else {
-      setSubmitted(true);
-    }
+    if (!error) setSubmitted(true);
   };
 
   return (
@@ -53,7 +47,6 @@ export default function RequestForm() {
           <input name="tune_type" placeholder="Tune Type" onChange={handleChange} /><br />
           <textarea name="notes" placeholder="Additional Notes" onChange={handleChange} /><br />
           <button onClick={handleSubmit}>Submit Request</button>
-          {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
         </>
       )}
     </main>
