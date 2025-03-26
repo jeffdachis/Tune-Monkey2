@@ -19,9 +19,8 @@ export default function RequestForm() {
   };
 
   const handleSubmit = async () => {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (!user || userError) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       router.push('/login');
       return;
     }
