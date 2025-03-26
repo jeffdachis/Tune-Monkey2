@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { UploadButton } from '../lib/uploadthingClient';
 
 export default function Admin() {
   const [requestId, setRequestId] = useState('');
