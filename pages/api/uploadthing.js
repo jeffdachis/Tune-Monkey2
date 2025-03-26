@@ -1,15 +1,28 @@
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { NextRequest } from "next/server";
+
+const f = createUploadthing();
+
+export const uploadRouter = {
+  uploadTune: f({ json: { maxFileSize: "4MB" } })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return {
+        url: file.url,
+        name: file.name,
+        type: file.type,
+      };
+    }),
+};
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+export default function handler(req, res) {
+  if (req.method === "POST" || req.method === "GET") {
+    return createUploadthing({ router: uploadRouter })(req, res);
   }
-
-  // In a real system, you'd parse req.body and do something with the file
-  // For now, we just return a fixed dummy URL
-  const body = await req.json();
-  console.log("Dummy /api/uploadthing request body:", body);
-
-  // Return a fake URL
-  return res.status(200).json({
-    url: "https://uploadthing.com/dummy/dummy-tune.json"
-  });
+  res.status(405).end();
 }
