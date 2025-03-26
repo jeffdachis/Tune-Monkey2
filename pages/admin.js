@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { UT_API_KEY } from '../uploadthing.config';
-import { genUploader } from "uploadthing/client";
-import type { UploadRouter } from "../api/uploadthing";
-export const { uploadFiles } = genUploader<UploadRouter>();
+
+// We won't import genUploader or UploadRouter to avoid TS syntax. 
+// Instead, we'll do a direct fetch to our dummy endpoint.
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
@@ -33,13 +33,29 @@ export default function AdminPanel() {
     }
     setErrorMsg('');
     try {
-      const res = await uploadFiles("uploadTune", { files: [file] });
-      console.log("UploadThing response:", res);
-      if (!res || !res[0]?.url) {
-        throw new Error("UploadThing did not return a valid URL");
+      // We'll do a POST to our dummy route at /api/uploadthing
+      // which will return a fixed URL for testing.
+      const res = await fetch("/api/uploadthing", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uploadthing-api-key": UT_API_KEY
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type
+        })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Dummy Upload route failed: ${res.status} ${errText}`);
       }
-      const fileUrl = res[0].url;
-      setUploadUrl(fileUrl);
+      const json = await res.json();
+      console.log("Dummy upload response:", json);
+      if (!json.url) {
+        throw new Error("Response did not contain a 'url'");
+      }
+      setUploadUrl(json.url);
     } catch (error) {
       console.error("Error during file upload:", error);
       setErrorMsg(error.message);
