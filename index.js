@@ -7,6 +7,7 @@ export default function Home() {
       <ul>
         <li><Link href="/login">Login</Link></li>
         <li><Link href="/dashboard">Dashboard</Link></li>
+        <li><Link href="/request">Request a Tune</Link></li>
         <li><Link href="/admin">Admin Panel</Link></li>
       </ul>
     </main>

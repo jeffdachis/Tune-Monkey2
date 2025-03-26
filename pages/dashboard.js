@@ -11,27 +11,19 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-
       if (!user) {
-        router.push('/login'); // Redirect to login if no user
+        router.push('/login');
         return;
       }
-
       setUserEmail(user.email);
-
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('custom_requests')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-
-      if (!error) {
-        setRequest(data);
-      }
-
+      setRequest(data);
       setLoading(false);
     };
-
     fetchData();
   }, []);
 
