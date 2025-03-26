@@ -1,58 +1,45 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { uploadFiles } from '../lib/uploadthingClient';
+import { UploadButton } from '../lib/uploadthingClient';
 
 export default function Admin() {
-  const [file, setFile] = useState(null);
-  const [uploadUrl, setUploadUrl] = useState('');
   const [requestId, setRequestId] = useState('');
   const [delivered, setDelivered] = useState(false);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
-
-  const uploadFile = async () => {
-    if (!file || !requestId) return alert("Missing file or request ID");
-
-    try {
-      const uploaded = await uploadFiles("uploadTune", {
-        files: [file],
-      });
-
-      const fileUrl = uploaded?.[0]?.url;
-      if (!fileUrl) throw new Error("No URL returned from upload");
-
-      setUploadUrl(fileUrl);
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("File upload failed");
+  const handleUploadComplete = async (res) => {
+    if (!res || !res[0]) {
+      console.error("Upload failed");
+      return;
     }
-  };
 
-  const sendFile = async () => {
-    if (!uploadUrl || !requestId) return;
-
+    const { url } = res[0];
     const { error } = await supabase
       .from('custom_requests')
-      .update({ downloadUrl: uploadUrl, status: 'delivered' })
+      .update({ uploadUrl: url, status: 'delivered' })
       .eq('id', requestId);
 
-    if (!error) {
-      setDelivered(true);
+    if (error) {
+      console.error("Error updating Supabase:", error);
     } else {
-      alert("Error delivering file");
+      setDelivered(true);
     }
   };
 
   return (
-    <main>
+    <main style={{ padding: 20 }}>
       <h1>Admin Panel</h1>
-      <input type="text" placeholder="Request ID" onChange={(e) => setRequestId(e.target.value)} />
-      <input type="file" accept=".json" onChange={handleFileChange} />
-      <button onClick={uploadFile}>Upload</button>
-      {uploadUrl && <p>Uploaded to: {uploadUrl}</p>}
-      {uploadUrl && !delivered && <button onClick={sendFile}>Send File to User</button>}
+      <input
+        type="text"
+        placeholder="Request ID"
+        value={requestId}
+        onChange={(e) => setRequestId(e.target.value)}
+        style={{ marginBottom: 10 }}
+      />
+      <UploadButton
+        endpoint="uploadTune"
+        onClientUploadComplete={handleUploadComplete}
+        onUploadError={(e) => console.error('Upload error', e)}
+      />
       {delivered && <p>✅ Delivered!</p>}
     </main>
   );
