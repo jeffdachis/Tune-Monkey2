@@ -1,28 +1,15 @@
-import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { NextRequest } from "next/server";
+import { createUploadthing, type FileRouter } from 'uploadthing/server';
+import { uploadthingMiddleware } from 'uploadthing/server';
 
 const f = createUploadthing();
 
 export const uploadRouter = {
-  uploadTune: f({ json: { maxFileSize: "4MB" } })
-    .onUploadComplete(async ({ metadata, file }) => {
-      return {
-        url: file.url,
-        name: file.name,
-        type: file.type,
-      };
+  uploadTune: f({ json: { maxFileSize: '1MB' } })
+    .onUploadComplete(({ file }) => {
+      console.log('Upload complete:', file.url);
+      return { url: file.url, name: file.name, type: file.type };
     }),
 };
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default function handler(req, res) {
-  if (req.method === "POST" || req.method === "GET") {
-    return createUploadthing({ router: uploadRouter })(req, res);
-  }
-  res.status(405).end();
-}
+export const handler = uploadthingMiddleware({ router: uploadRouter });
+export default handler;
