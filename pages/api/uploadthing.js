@@ -1,17 +1,16 @@
-import { createUploadthing, createRouteHandler } from "uploadthing/next";
+import { createUploadthing, type FileRouter } from "uploadthing/next";
 
 const f = createUploadthing();
 
 export const uploadRouter = {
   uploadTune: f({ json: { maxFileSize: "4MB" } })
     .onUploadComplete(async ({ file }) => {
-      console.log("✅ Upload complete:", file);
       return {
         url: file.url,
         name: file.name,
         type: file.type,
       };
     }),
-};
+} satisfies FileRouter;
 
-export const { GET, POST } = createRouteHandler({ router: uploadRouter });
+export type UploadRouter = typeof uploadRouter;
