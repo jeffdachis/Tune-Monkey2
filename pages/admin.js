@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { uploadFiles } from '../lib/uploadthingClient'; // ✅ correct source
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
@@ -36,53 +35,40 @@ export default function AdminPanel() {
     }
 
     try {
-      const res = await uploadFiles("uploadTune", { files: [file] });
+      // Step 1: get signed URL
+      const res = await fetch("https://uploadthing.com/api/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_UPLOADTHING_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: file.name,
+          type: file.type
+        }),
+      });
 
-      if (!res || !res[0] || !res[0].url) {
-        throw new Error("Upload failed");
+      const json = await res.json();
+
+      if (!json || !json.url) {
+        throw new Error("Failed to get upload URL");
       }
 
-      const { url } = res[0];
+      // Step 2: upload file to UploadThing
+      await fetch(json.url, {
+        method: "PUT",
+        body: file
+      });
 
+      const uploadedUrl = json.url.split("?")[0];
+
+      // Step 3: update Supabase with uploaded URL
       const { error } = await supabase
         .from('custom_requests')
-        .update({ uploadUrl: url, status: 'delivered' })
+        .update({
+          uploadUrl: uploadedUrl,
+          status: 'delivered'
+        })
         .eq('id', selectedRequestId);
 
       if (error) {
-        console.error("Error updating Supabase:", error);
-      } else {
-        setDelivered(true);
-      }
-
-    } catch (err) {
-      console.error("Upload error:", err);
-    }
-  };
-
-  return (
-    <main style={{ padding: 20 }}>
-      <h1>Admin Panel</h1>
-
-      <ul>
-        {requests.map((req) => (
-          <li key={req.id} style={{ marginBottom: 10 }}>
-            <strong>ID:</strong> {req.id}<br />
-            <strong>User:</strong> {req.email || req.user_id}<br />
-            <strong>Status:</strong> {req.status}<br />
-            <button onClick={() => setSelectedRequestId(req.id)}>Select</button>
-          </li>
-        ))}
-      </ul>
-
-      {selectedRequestId && (
-        <>
-          <p>Selected Request ID: {selectedRequestId}</p>
-          <input type="file" accept=".json" onChange={handleFileChange} />
-          <button onClick={handleUpload}>Upload</button>
-          {delivered && <p>✅ Delivered!</p>}
-        </>
-      )}
-    </main>
-  );
-}
