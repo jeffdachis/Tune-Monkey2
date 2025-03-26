@@ -14,5 +14,4 @@ export const uploadRouter = {
     }),
 };
 
-// Export handler for UploadThing to work
 export const { GET, POST } = createRouteHandler({ router: uploadRouter });
