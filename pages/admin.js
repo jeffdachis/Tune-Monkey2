@@ -29,28 +29,65 @@ export default function AdminPanel() {
   };
 
   const handleUpload = async () => {
-    if (!file || !selectedRequestId) {
-      alert("Missing file or request selection");
-      return;
+  if (!file || !selectedRequestId) {
+    alert("Missing file or request selection");
+    return;
+  }
+
+  try {
+    // STEP 1: Get signed upload URL
+    const res = await fetch("https://uploadthing.com/api/upload", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_UPLOADTHING_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: file.name,
+        type: file.type,
+      }),
+    });
+
+    const json = await res.json();
+    const uploadUrl = json?.url;
+
+    if (!uploadUrl) {
+      throw new Error("Failed to get upload URL");
     }
 
-    // Dummy response simulation
-    const fileUrl = "https://uploadthing.com/dummy/" + encodeURIComponent(file.name);
+    // STEP 2: Upload file to signed URL
+    const uploadRes = await fetch(uploadUrl, {
+      method: "PUT",
+      body: file,
+    });
 
+    if (!uploadRes.ok) {
+      throw new Error("Upload to signed URL failed");
+    }
+
+    const finalUrl = uploadUrl.split("?")[0];
+
+    // STEP 3: Update Supabase
     const { error } = await supabase
-      .from('custom_requests')
+      .from("custom_requests")
       .update({
-        uploadUrl: fileUrl,
-        status: 'delivered'
+        uploadUrl: finalUrl,
+        status: 'delivered',
       })
       .eq('id', selectedRequestId);
 
     if (error) {
-      console.error("Supabase update error:", error);
-    } else {
-      setDelivered(true);
+      throw new Error("Failed to update Supabase");
     }
-  };
+
+    setDelivered(true);
+    alert("✅ File uploaded and delivered!");
+  } catch (err) {
+    console.error("Upload error:", err);
+    alert("Upload failed: " + err.message);
+  }
+};
+
 
   return (
     <main style={{ padding: 20 }}>
