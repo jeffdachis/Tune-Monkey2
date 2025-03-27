@@ -1,45 +1,63 @@
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Dashboard() {
-  const [request, setRequest] = useState(null);
-  const [userEmail, setUserEmail] = useState('');
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [requests, setRequests] = useState([]);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
+    const fetchUserAndRequests = async () => {
+      const {
+        data: { user },
+        error: userError
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error("User not authenticated");
         return;
       }
-      setUserEmail(user.email);
+
+      setUserId(user.id);
+
       const { data, error } = await supabase
         .from('custom_requests')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle();
-      setRequest(data);
-      setLoading(false);
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Error loading requests:", error);
+      } else {
+        setRequests(data);
+      }
     };
-    fetchData();
+
+    fetchUserAndRequests();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
-
   return (
-    <main>
-      <h1>Dashboard</h1>
-      <p>Logged in as: {userEmail}</p>
-      <h2>Your Custom Tune</h2>
-      {request?.status === 'delivered' ? (
-        <a href={request.downloadUrl} target="_blank" rel="noopener noreferrer">
-          <button>Download Your Tune</button>
-        </a>
+    <main style={{ padding: 20 }}>
+      <h1>Your Tune Requests</h1>
+
+      {requests.length === 0 ? (
+        <p>No tune requests yet.</p>
       ) : (
-        <p>Your file has not yet been delivered.</p>
+        <ul>
+          {requests.map((req) => (
+            <li key={req.id} style={{ marginBottom: 20 }}>
+              <strong>Motor:</strong> {req.motor} <br />
+              <strong>Controller:</strong> {req.controller} <br />
+              <strong>Status:</strong> {req.status} <br />
+              {req.status === 'delivered' && req.uploadUrl ? (
+                <a href={req.uploadUrl} download>
+                  ⬇️ Download Tune File
+                </a>
+              ) : (
+                <em>Tune not yet delivered.</em>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </main>
   );
