@@ -4,46 +4,27 @@ export default async function handler(req, res) {
   }
 
   const { name, type } = req.body;
-
-  if (!name || !type) {
-    return res.status(400).json({ error: "Missing name or type" });
-  }
-
-  const apiKey = process.env.UPLOADTHING_API_KEY;
+  const apiKey = process.env.UPLOADTHING_SECRET;
 
   if (!apiKey) {
-    console.error("Missing UPLOADTHING_API_KEY in environment");
-    return res.status(500).json({ error: "Server misconfiguration" });
+    return res.status(500).json({ error: "Missing UploadThing API Key" });
   }
 
-  try {
-    // Step 1: Request signed URL from UploadThing
-    const response = await fetch("https://uploadthing.com/api/uploadFiles", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        files: [{ name, type }],
-        input: {},
-        routeConfig: {
-          endpoint: "uploadTune", // must match the UploadThing dashboard
-        },
-      }),
-    });
+  const response = await fetch("https://uploadthing.com/api/upload", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-uploadthing-api-key": apiKey
+    },
+    body: JSON.stringify({ name, type })
+  });
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error("UploadThing error:", result);
-      return res.status(response.status).json(result);
-    }
-
-    const { url, key } = result[0];
-    res.status(200).json({ url, key });
-  } catch (err) {
-    console.error("Unexpected error from UploadThing:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("UploadThing error:", errorData);
+    return res.status(response.status).json({ error: errorData });
   }
+
+  const { url } = await response.json();
+  res.status(200).json({ url });
 }
