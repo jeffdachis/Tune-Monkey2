@@ -9,7 +9,11 @@ export default function AdminPanel() {
 
   useEffect(() => {
     const fetchRequests = async () => {
-      const { data, error } = await supabase.from('custom_requests').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('custom_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
       if (error) console.error('Error fetching requests:', error);
       else setRequests(data);
     };
@@ -26,32 +30,22 @@ export default function AdminPanel() {
 
     setStatusMsg('Uploading...');
 
-    const apiKey = process.env.NEXT_PUBLIC_UPLOADTHING_API_KEY;
-    if (!apiKey) {
-      setStatusMsg('❌ API key missing');
-      return;
-    }
-
     try {
-      // Step 1: Get upload URL
-      const res1 = await fetch('https://uploadthing.com/api/upload', {
+      const res1 = await fetch('/api/uploadthing', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-uploadthing-api-key': apiKey
-        },
-        body: JSON.stringify({
-          files: [{ name: file.name, type: file.type }],
-          metadata: {}
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: file.name, type: file.type })
       });
 
-      const data1 = await res1.json();
-      if (!data1 || !data1[0]?.url) throw new Error('UploadThing response invalid');
+      if (!res1.ok) {
+        const errData = await res1.json();
+        console.error("Backend error getting URL:", errData);
+        setStatusMsg(`❌ ${errData.error || 'Failed to get upload URL'}`);
+        return;
+      }
 
-      const { url, key } = data1[0];
+      const { url } = await res1.json();
 
-      // Step 2: Upload the file to the pre-signed URL
       const res2 = await fetch(url, {
         method: 'PUT',
         body: file
@@ -61,7 +55,6 @@ export default function AdminPanel() {
 
       const uploadedUrl = url.split('?')[0];
 
-      // Step 3: Update Supabase record
       const { error } = await supabase
         .from('custom_requests')
         .update({ uploadUrl: uploadedUrl, status: 'delivered' })
