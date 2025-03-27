@@ -109,7 +109,7 @@ export default function AdminPanel() {
           <p>Selected Request ID: {selectedRequestId}</p>
           <input type="file" accept=".json" onChange={handleFileChange} />
           <button onClick={handleUpload}>Upload</button>
-          {delivered && <p>✅ Delivered!</p>}
+          {delivered && <p style={{ color: "green" }}>✅ Delivered</p>}
         </>
       )}
     </main>
