@@ -27,8 +27,8 @@ export default async function handler(req, res) {
   }
 
   const data = await response.json();
-  const url = data?.[0]?.url;
-  if (!url) return res.status(500).json({ error: "No URL returned" });
+ const { url, key } = data?.[0] || {};
+if (!url || !key) return res.status(500).json({ error: "Invalid UploadThing response" });
 
-  res.status(200).json({ url });
-}
+res.status(200).json({ url, key });
+
