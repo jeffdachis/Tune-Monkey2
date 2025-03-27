@@ -36,34 +36,25 @@ export default function AdminPanel() {
 
   try {
     // STEP 1: Get signed upload URL
-    const res = await fetch("https://uploadthing.com/api/upload", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_UPLOADTHING_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: file.name,
-        type: file.type,
-      }),
-    });
+   const res = await fetch("https://uploadthing.com/api/upload", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.NEXT_PUBLIC_UPLOADTHING_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    name: file.name,
+    type: file.type,
+  }),
+});
 
-    const json = await res.json();
-    const uploadUrl = json?.url;
+const json = await res.json();
+console.log("UploadThing response:", json);
 
-    if (!uploadUrl) {
-      throw new Error("Failed to get upload URL");
-    }
-
-    // STEP 2: Upload file to signed URL
-    const uploadRes = await fetch(uploadUrl, {
-      method: "PUT",
-      body: file,
-    });
-
-    if (!uploadRes.ok) {
-      throw new Error("Upload to signed URL failed");
-    }
+if (!json || !json.url) {
+  alert("UploadThing error: " + JSON.stringify(json));
+  throw new Error("Failed to get upload URL");
+}
 
     const finalUrl = uploadUrl.split("?")[0];
 
