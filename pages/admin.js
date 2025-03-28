@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -13,7 +14,6 @@ export default function AdminPanel() {
         .from('custom_requests')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) console.error('Error fetching requests:', error);
       else setRequests(data);
     };
@@ -26,45 +26,40 @@ export default function AdminPanel() {
   };
 
   const handleUpload = async () => {
-  if (!file || !selectedRequest) return alert('Missing file or request');
+    if (!file || !selectedRequest) return alert('Missing file or request');
 
-  setStatusMsg('Uploading to Supabase...');
+    setStatusMsg('Uploading to Supabase...');
 
-  const filePath = `${selectedRequest.id}/${file.name}`;
+    const filePath = `${selectedRequest.id}/${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('tunes')
+      .upload(filePath, file, { upsert: true });
 
-  const { data, error } = await supabase.storage
-    .from('tunes')
-    .upload(filePath, file, {
-      upsert: true, // overwrites if exists
-    });
+    if (error) {
+      console.error('Upload error:', error);
+      setStatusMsg('❌ Upload failed');
+      return;
+    }
 
-  if (error) {
-    console.error('Upload error:', error);
-    setStatusMsg('❌ Upload failed');
-    return;
-  }
+    const { data: urlData } = supabase.storage.from('tunes').getPublicUrl(filePath);
+    const downloadUrl = urlData?.publicUrl;
 
-  // Optionally get a public URL
-  const { data: urlData } = supabase.storage.from('tunes').getPublicUrl(filePath);
-  const downloadUrl = urlData?.publicUrl;
+    const { error: updateError } = await supabase
+      .from('custom_requests')
+      .update({
+        uploadUrl: downloadUrl,
+        status: 'delivered'
+      })
+      .eq('id', selectedRequest.id);
 
-  // Update Supabase record
-  const { error: updateError } = await supabase
-    .from('custom_requests')
-    .update({
-      uploadUrl: downloadUrl,
-      status: 'delivered'
-    })
-    .eq('id', selectedRequest.id);
+    if (updateError) {
+      console.error('Supabase update error:', updateError);
+      setStatusMsg('❌ Failed to update Supabase');
+      return;
+    }
 
-  if (updateError) {
-    console.error('Supabase update error:', updateError);
-    setStatusMsg('❌ Failed to update Supabase');
-    return;
-  }
-
-  setStatusMsg('✅ Delivered!');
-};
+    setStatusMsg('✅ Delivered!');
+  };
 
   return (
     <main style={{ padding: 40 }}>
