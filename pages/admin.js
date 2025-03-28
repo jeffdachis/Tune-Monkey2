@@ -26,48 +26,45 @@ export default function AdminPanel() {
   };
 
   const handleUpload = async () => {
-    if (!file || !selectedRequest) return alert('Missing file or request');
+  if (!file || !selectedRequest) return alert('Missing file or request');
 
-    setStatusMsg('Uploading...');
+  setStatusMsg('Uploading to Supabase...');
 
-    try {
-      const res1 = await fetch('/api/uploadthing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: file.name, type: file.type })
-      });
+  const filePath = `${selectedRequest.id}/${file.name}`;
 
-      if (!res1.ok) {
-        const errData = await res1.json();
-        console.error("Backend error getting URL:", errData);
-        setStatusMsg(`❌ ${errData.error || 'Failed to get upload URL'}`);
-        return;
-      }
+  const { data, error } = await supabase.storage
+    .from('tunes')
+    .upload(filePath, file, {
+      upsert: true, // overwrites if exists
+    });
 
-      const { url } = await res1.json();
+  if (error) {
+    console.error('Upload error:', error);
+    setStatusMsg('❌ Upload failed');
+    return;
+  }
 
-      const res2 = await fetch(url, {
-        method: 'PUT',
-        body: file
-      });
+  // Optionally get a public URL
+  const { data: urlData } = supabase.storage.from('tunes').getPublicUrl(filePath);
+  const downloadUrl = urlData?.publicUrl;
 
-      if (!res2.ok) throw new Error('Upload failed to S3');
+  // Update Supabase record
+  const { error: updateError } = await supabase
+    .from('custom_requests')
+    .update({
+      uploadUrl: downloadUrl,
+      status: 'delivered'
+    })
+    .eq('id', selectedRequest.id);
 
-      const uploadedUrl = url.split('?')[0];
+  if (updateError) {
+    console.error('Supabase update error:', updateError);
+    setStatusMsg('❌ Failed to update Supabase');
+    return;
+  }
 
-      const { error } = await supabase
-        .from('custom_requests')
-        .update({ uploadUrl: uploadedUrl, status: 'delivered' })
-        .eq('id', selectedRequest.id);
-
-      if (error) throw new Error('Failed to update Supabase');
-
-      setStatusMsg('✅ Delivered!');
-    } catch (err) {
-      console.error('Upload failed:', err);
-      setStatusMsg('❌ Upload failed');
-    }
-  };
+  setStatusMsg('✅ Delivered!');
+};
 
   return (
     <main style={{ padding: 40 }}>
