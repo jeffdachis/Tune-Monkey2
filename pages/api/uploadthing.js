@@ -3,32 +3,41 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = process.env.UPLOADTHING_SECRET;
-  if (!apiKey) return res.status(500).json({ error: "Missing UploadThing API Key" });
-
   const { name, type } = req.body;
-  if (!name || !type) return res.status(400).json({ error: "Missing file name/type" });
-
-  const response = await fetch("https://uploadthing.com/api/upload", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-uploadthing-api-key": apiKey
-    },
-    body: JSON.stringify({
-      files: [{ name, type }]
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error("UploadThing error:", errorData);
-    return res.status(response.status).json({ error: errorData?.error || 'UploadThing failed' });
+  if (!name || !type) {
+    return res.status(400).json({ error: "Missing file name or type" });
   }
 
-  const data = await response.json();
- const { url, key } = data?.[0] || {};
-if (!url || !key) return res.status(500).json({ error: "Invalid UploadThing response" });
+  // 🔥 PASTE your actual UploadThing REST API key here:
+  const apiKey = "QUxMIFPV..."; // Must be your real x-uploadthing-api-key
 
-res.status(200).json({ url, key });
+  try {
+    const uploadRes = await fetch("https://uploadthing.com/api/upload", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-uploadthing-api-key": apiKey
+      },
+      body: JSON.stringify({
+        files: [{ name, type }]
+      })
+    });
 
+    if (!uploadRes.ok) {
+      const err = await uploadRes.json();
+      console.error("UploadThing rejected the request:", err);
+      return res.status(uploadRes.status).json({ error: err?.error || "UploadThing error" });
+    }
+
+    const data = await uploadRes.json();
+    const { url, key } = data[0] || {};
+    if (!url) {
+      return res.status(500).json({ error: "No URL returned by UploadThing" });
+    }
+
+    return res.status(200).json({ url, key });
+  } catch (err) {
+    console.error("Internal Server Error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+}
