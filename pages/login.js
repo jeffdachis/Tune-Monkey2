@@ -37,7 +37,7 @@ export default function Login() {
 
   return (
     <main>
-      <h1>fLogin</h1>
+      <h1>TUNE MONKEY LOGIN</h1>
       <input type="email" placeholder="Your email" onChange={(e) => setEmail(e.target.value)} />
       <button onClick={handleLogin}>Send Magic Link</button>
       <p>{message}</p>
