@@ -6,10 +6,15 @@ export default function AdminPanel() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [file, setFile] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
+  const [publicUrl, setPublicUrl] = useState('');
 
   useEffect(() => {
     const fetchRequests = async () => {
-      const { data, error } = await supabase.from('custom_requests').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('custom_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
       if (error) console.error('Error fetching requests:', error);
       else setRequests(data);
     };
@@ -22,13 +27,16 @@ export default function AdminPanel() {
 
   const handleUpload = async () => {
     if (!file || !selectedRequest) return alert('Missing file or request');
-    setStatusMsg('Uploading...');
 
-    const { data, error: uploadError } = await supabase.storage.from('tunes').upload(
-      `${selectedRequest.id}/${file.name}`,
-      file,
-      { upsert: true, contentType: file.type }
-    );
+    setStatusMsg('Uploading...');
+    const filePath = `${selectedRequest.id}/${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('tunes')
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: file.type,
+      });
 
     if (uploadError) {
       console.error('Upload failed:', uploadError);
@@ -36,13 +44,18 @@ export default function AdminPanel() {
       return;
     }
 
-    const { data: urlData } = supabase.storage.from('tunes').getPublicUrl(`${selectedRequest.id}/${file.name}`);
-    const publicUrl = urlData.publicUrl;
+    const { data: urlData } = supabase
+      .storage
+      .from('tunes')
+      .getPublicUrl(filePath);
+
+    const url = urlData?.publicUrl;
+    setPublicUrl(url);
 
     const { error: updateError } = await supabase
       .from('custom_requests')
       .update({
-        uploadUrl: publicUrl,
+        uploadUrl: url,
         status: 'delivered',
         file_type: file.type,
         file_size: file.size
@@ -63,8 +76,14 @@ export default function AdminPanel() {
       <ul>
         {requests.map((r) => (
           <li key={r.id} style={{ marginBottom: 8 }}>
-            <strong>{r.email || 'No email'}</strong> — {r.motor} / {r.controller}
-            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>Select</button>
+            <strong>{r.email || 'No email'}</strong> — {r.motor} / {r.controller}<br />
+            Status: {r.status || 'pending'}<br />
+            {r.uploadUrl && (
+              <>
+                Download: <a href={r.uploadUrl} target="_blank" rel="noopener noreferrer">{r.uploadUrl}</a><br />
+              </>
+            )}
+            <button style={{ marginTop: 4 }} onClick={() => setSelectedRequest(r)}>Select</button>
           </li>
         ))}
       </ul>
@@ -73,6 +92,11 @@ export default function AdminPanel() {
           <h2>Upload .json for: {selectedRequest.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
+          {publicUrl && (
+            <div style={{ marginTop: 10 }}>
+              ✅ Uploaded URL: <a href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a>
+            </div>
+          )}
           <p>{statusMsg}</p>
         </div>
       )}
