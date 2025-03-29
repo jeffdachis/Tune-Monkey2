@@ -4,17 +4,17 @@ import { supabase } from '../lib/supabaseClient';
 export default function Dashboard() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    const fetchRequests = async () => {
+    const fetchData = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+      if (!user) return setLoading(false);
+
+      setUserId(user.id);
 
       const { data, error } = await supabase
         .from('custom_requests')
@@ -22,16 +22,13 @@ export default function Dashboard() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching requests:', error);
-      } else {
-        setRequests(data);
-      }
+      if (!error) setRequests(data);
+      else console.error('Error fetching:', error);
 
       setLoading(false);
     };
 
-    fetchRequests();
+    fetchData();
 
     const channel = supabase
       .channel('custom_requests_dashboard')
@@ -39,9 +36,12 @@ export default function Dashboard() {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'custom_requests' },
         (payload) => {
-          setRequests((prev) =>
-            prev.map((r) => (r.id === payload.new.id ? payload.new : r))
-          );
+          const updated = payload.new;
+          if (updated.user_id === userId) {
+            setRequests((prev) =>
+              prev.map((r) => (r.id === updated.id ? updated : r))
+            );
+          }
         }
       )
       .subscribe();
@@ -49,7 +49,7 @@ export default function Dashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [userId]);
 
   if (loading) return <p>Loading...</p>;
 
@@ -61,18 +61,25 @@ export default function Dashboard() {
       ) : (
         <ul>
           {requests.map((r) => (
-            <li key={r.id} style={{ marginBottom: 16 }}>
+            <li key={r.id} style={{ marginBottom: 20 }}>
               <strong>{r.motor} / {r.controller}</strong><br />
-              Status: {r.status || 'pending'}<br />
+              Status: <strong>{r.status || 'pending'}</strong><br />
               {r.uploadUrl ? (
-                <a
-                  href={r.uploadUrl}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  ⬇️ Download Tune (.json)
-                </a>
+                <>
+                  <a
+                    href={r.uploadUrl}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    ⬇️ Download Tune
+                  </a>
+                  <br />
+                  <small>
+                    {r.fileType ? `Type: ${r.fileType}` : ''}{" "}
+                    {r.fileSize ? `Size: ${(r.fileSize / 1024).toFixed(1)} KB` : ''}
+                  </small>
+                </>
               ) : (
                 <em>Not delivered yet</em>
               )}
