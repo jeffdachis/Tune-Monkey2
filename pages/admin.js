@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -10,14 +9,10 @@ export default function AdminPanel() {
 
   useEffect(() => {
     const fetchRequests = async () => {
-      const { data, error } = await supabase
-        .from('custom_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('custom_requests').select('*').order('created_at', { ascending: false });
       if (error) console.error('Error fetching requests:', error);
       else setRequests(data);
     };
-
     fetchRequests();
   }, []);
 
@@ -27,55 +22,52 @@ export default function AdminPanel() {
 
   const handleUpload = async () => {
     if (!file || !selectedRequest) return alert('Missing file or request');
+    setStatusMsg('Uploading...');
 
-    setStatusMsg('Uploading to Supabase...');
+    const { data, error: uploadError } = await supabase.storage.from('tunes').upload(
+      `${selectedRequest.id}/${file.name}`,
+      file,
+      { upsert: true, contentType: file.type }
+    );
 
-    const filePath = `${selectedRequest.id}/${file.name}`;
-    const { data, error } = await supabase.storage
-      .from('tunes')
-      .upload(filePath, file, { upsert: true });
-
-    if (error) {
-      console.error('Upload error:', error);
+    if (uploadError) {
+      console.error('Upload failed:', uploadError);
       setStatusMsg('❌ Upload failed');
       return;
     }
 
-    const { data: urlData } = supabase.storage.from('tunes').getPublicUrl(filePath);
-    const downloadUrl = urlData?.publicUrl;
+    const { data: urlData } = supabase.storage.from('tunes').getPublicUrl(`${selectedRequest.id}/${file.name}`);
+    const publicUrl = urlData.publicUrl;
 
     const { error: updateError } = await supabase
       .from('custom_requests')
       .update({
-        uploadUrl: downloadUrl,
-        status: 'delivered'
+        uploadUrl: publicUrl,
+        status: 'delivered',
+        file_type: file.type,
+        file_size: file.size
       })
       .eq('id', selectedRequest.id);
 
     if (updateError) {
-      console.error('Supabase update error:', updateError);
-      setStatusMsg('❌ Failed to update Supabase');
-      return;
+      console.error('Failed to update Supabase:', updateError);
+      setStatusMsg('❌ DB update failed');
+    } else {
+      setStatusMsg('✅ Delivered!');
     }
-
-    setStatusMsg('✅ Delivered!');
   };
 
   return (
     <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
-
       <ul>
         {requests.map((r) => (
           <li key={r.id} style={{ marginBottom: 8 }}>
             <strong>{r.email || 'No email'}</strong> — {r.motor} / {r.controller}
-            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
-              Select
-            </button>
+            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>Select</button>
           </li>
         ))}
       </ul>
-
       {selectedRequest && (
         <div style={{ marginTop: 30 }}>
           <h2>Upload .json for: {selectedRequest.id}</h2>

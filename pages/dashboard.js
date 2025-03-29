@@ -7,30 +7,21 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchRequests = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
         return;
       }
-
       const { data, error } = await supabase
         .from('custom_requests')
         .select('id, motor, controller, status, uploadUrl, file_type, file_size')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching requests:', error);
-      } else {
-        setRequests(data);
-      }
-
+      if (error) console.error('Error fetching requests:', error);
+      else setRequests(data);
       setLoading(false);
     };
-
     fetchRequests();
   }, []);
 
@@ -49,11 +40,9 @@ export default function Dashboard() {
               Status: {r.status || 'pending'}<br />
               {r.uploadUrl ? (
                 <>
-                  <a href={r.uploadUrl} target="_blank" rel="noopener noreferrer">
-                    ⬇️ Download Tune
-                  </a><br />
+                  <a href={r.uploadUrl} target="_blank" rel="noopener noreferrer">⬇️ Download Tune</a><br />
                   Type: {r.file_type || 'Unknown'}<br />
-                  Size: {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'Unknown'}
+                  Size: {r.file_size ? (r.file_size / 1024).toFixed(1) + ' KB' : 'Unknown'}
                 </>
               ) : (
                 <em>Not delivered yet</em>
