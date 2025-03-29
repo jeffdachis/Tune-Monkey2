@@ -18,7 +18,7 @@ export default function Dashboard() {
 
       const { data, error } = await supabase
         .from('custom_requests')
-        .select('*')
+        .select('id, motor, controller, status, uploadUrl, file_type, file_size')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -48,9 +48,13 @@ export default function Dashboard() {
               <strong>{r.motor} / {r.controller}</strong><br />
               Status: {r.status || 'pending'}<br />
               {r.uploadUrl ? (
-                <a href={r.uploadUrl} target="_blank" rel="noopener noreferrer">
-                  ⬇️ Download Tune
-                </a>
+                <>
+                  <a href={r.uploadUrl} target="_blank" rel="noopener noreferrer">
+                    ⬇️ Download Tune
+                  </a><br />
+                  Type: {r.file_type || 'Unknown'}<br />
+                  Size: {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'Unknown'}
+                </>
               ) : (
                 <em>Not delivered yet</em>
               )}
