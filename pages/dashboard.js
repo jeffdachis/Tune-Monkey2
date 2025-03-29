@@ -7,7 +7,7 @@ export default function Dashboard() {
   const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUserAndRequests = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -23,15 +23,15 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (!error) setRequests(data);
-      else console.error('Error fetching:', error);
+      else console.error('Error fetching requests:', error);
 
       setLoading(false);
     };
 
-    fetchData();
+    fetchUserAndRequests();
 
     const channel = supabase
-      .channel('custom_requests_dashboard')
+      .channel('dashboard_realtime')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'custom_requests' },
@@ -76,8 +76,8 @@ export default function Dashboard() {
                   </a>
                   <br />
                   <small>
-                    {r.fileType ? `Type: ${r.fileType}` : ''}{" "}
-                    {r.fileSize ? `Size: ${(r.fileSize / 1024).toFixed(1)} KB` : ''}
+                    {r.file_type ? `Type: ${r.file_type}` : ''}{" "}
+                    {r.file_size ? `Size: ${(r.file_size / 1024).toFixed(1)} KB` : ''}
                   </small>
                 </>
               ) : (
@@ -90,3 +90,4 @@ export default function Dashboard() {
     </main>
   );
 }
+
