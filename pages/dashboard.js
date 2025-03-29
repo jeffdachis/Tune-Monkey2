@@ -1,23 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Dashboard() {
   const [requests, setRequests] = useState([]);
-  const [userId, setUserId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserAndRequests = async () => {
+    const fetchRequests = async () => {
       const {
         data: { user },
-        error: userError
       } = await supabase.auth.getUser();
 
-      if (userError || !user) {
-        console.error("User not authenticated");
+      if (!user) {
+        setLoading(false);
         return;
       }
-
-      setUserId(user.id);
 
       const { data, error } = await supabase
         .from('custom_requests')
@@ -26,34 +23,36 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error("Error loading requests:", error);
+        console.error('Error fetching requests:', error);
       } else {
         setRequests(data);
       }
+
+      setLoading(false);
     };
 
-    fetchUserAndRequests();
+    fetchRequests();
   }, []);
 
-  return (
-    <main style={{ padding: 20 }}>
-      <h1>Your Tune Requests</h1>
+  if (loading) return <p>Loading...</p>;
 
+  return (
+    <main style={{ padding: 40 }}>
+      <h1>Your Tune Requests</h1>
       {requests.length === 0 ? (
-        <p>No tune requests yet.</p>
+        <p>No requests submitted yet.</p>
       ) : (
         <ul>
-          {requests.map((req) => (
-            <li key={req.id} style={{ marginBottom: 20 }}>
-              <strong>Motor:</strong> {req.motor} <br />
-              <strong>Controller:</strong> {req.controller} <br />
-              <strong>Status:</strong> {req.status} <br />
-              {req.status === 'delivered' && req.uploadUrl ? (
-                <a href={req.uploadUrl} download>
-                  ⬇️ Download Tune File
+          {requests.map((r) => (
+            <li key={r.id} style={{ marginBottom: 16 }}>
+              <strong>{r.motor} / {r.controller}</strong><br />
+              Status: {r.status || 'pending'}<br />
+              {r.uploadUrl ? (
+                <a href={r.uploadUrl} target="_blank" rel="noopener noreferrer">
+                  ⬇️ Download Tune
                 </a>
               ) : (
-                <em>Tune not yet delivered.</em>
+                <em>Not delivered yet</em>
               )}
             </li>
           ))}
