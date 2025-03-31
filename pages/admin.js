@@ -36,9 +36,7 @@ export default function AdminPanel() {
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
-        .upload(filePath, file, {
-          upsert: true,
-        });
+        .upload(filePath, file, { upsert: true });
 
       if (storageError) throw storageError;
 
@@ -52,8 +50,8 @@ export default function AdminPanel() {
           uploadUrl: publicUrl,
           downloadUrl: publicUrl,
           status: 'delivered',
-          file_type: file.type,
-          file_size: file.size,
+          file_type: file.type || 'application/json',
+          file_size: file.size || null,
         })
         .eq('id', selectedRequest.id);
 
