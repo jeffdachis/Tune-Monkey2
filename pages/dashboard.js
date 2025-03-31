@@ -32,27 +32,6 @@ export default function Dashboard() {
     };
 
     fetchRequests();
-
-    const channel = supabase
-      .channel('custom_requests_dashboard')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'custom_requests',
-        },
-        (payload) => {
-          setRequests((prev) =>
-            prev.map((req) => (req.id === payload.new.id ? payload.new : req))
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   if (loading) return <p>Loading...</p>;
@@ -65,21 +44,23 @@ export default function Dashboard() {
       ) : (
         <ul>
           {requests.map((r) => (
-            <li key={r.id} style={{ marginBottom: 20 }}>
+            <li key={r.id} style={{ marginBottom: 24 }}>
               <strong>{r.motor} / {r.controller}</strong><br />
-              Status: {r.status || 'pending'}<br />
+              Status: <strong>{r.status || 'pending'}</strong><br />
               File Type: {r.file_type || 'N/A'}<br />
               File Size: {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'N/A'}<br />
               {r.downloadUrl ? (
                 <a
-                  href={r.downloadUrl}
+                  href={`${r.downloadUrl}?download=${r.id}.json`}
                   download
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{ color: 'green', fontWeight: 'bold' }}
                 >
                   ⬇️ Download Tune
                 </a>
               ) : (
-                <em>Not delivered yet</em>
+                <em style={{ color: 'gray' }}>Not delivered yet</em>
               )}
             </li>
           ))}
