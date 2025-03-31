@@ -32,24 +32,20 @@ export default function AdminPanel() {
     setStatusMsg('Uploading...');
 
     try {
-      const fileExt = file.name.split('.').pop();
       const filePath = `${selectedRequest.id}/${file.name}`;
 
-      // Upload file to Supabase storage
-      const { data, error } = await supabase.storage
+      const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
         .upload(filePath, file, {
           upsert: true,
         });
 
-      if (error) throw error;
+      if (storageError) throw storageError;
 
-      // Generate public URL
       const {
         data: { publicUrl },
       } = supabase.storage.from('tunes').getPublicUrl(filePath);
 
-      // Update Supabase record
       const { error: updateError } = await supabase
         .from('custom_requests')
         .update({
@@ -78,6 +74,7 @@ export default function AdminPanel() {
         {requests.map((r) => (
           <li key={r.id} style={{ marginBottom: 12 }}>
             <strong>{r.email}</strong> — {r.motor} / {r.controller}<br />
+            <small>User ID: {r.user_id}</small><br />
             Status: {r.status || 'pending'}
             <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
               Select
