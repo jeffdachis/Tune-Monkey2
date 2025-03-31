@@ -35,35 +35,41 @@ export default function AdminPanel() {
     setStatusMsg('Uploading...');
 
     try {
-      const path = `${selectedRequest.id}/${file.name}`;
+      const filePath = `${selectedRequest.id}/${file.name}`;
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('tunes')
-        .upload(path, file, { upsert: true });
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: publicData } = supabase.storage.from('tunes').getPublicUrl(path);
-      const publicUrl = publicData.publicUrl;
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('tunes').getPublicUrl(filePath);
 
-      const updatePayload = {
-        uploadUrl: publicUrl,
-        downloadUrl: publicUrl,
-        status: 'delivered',
-        file_type: file.type,
-        file_size: file.size,
-      };
+      console.log("🧪 Upload completed, public URL:", publicUrl);
+      console.log("🧠 Selected Request ID:", selectedRequest.id);
 
       const { error: updateError } = await supabase
         .from('custom_requests')
-        .update(updatePayload)
+        .update({
+          uploadUrl: publicUrl,
+          downloadUrl: publicUrl,
+          status: 'delivered',
+          file_type: file.type || 'application/json',
+          file_size: file.size || null,
+        })
         .eq('id', selectedRequest.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('🔥 Supabase update error:', updateError);
+        throw updateError;
+      }
 
       setUploadUrl(publicUrl);
       setStatusMsg('✅ Delivered!');
     } catch (err) {
-      console.error('Upload error:', err);
+      console.error('❌ Upload error:', err);
       setStatusMsg('❌ Upload failed');
     }
   };
@@ -89,16 +95,11 @@ export default function AdminPanel() {
           <h2>Upload .json for: {selectedRequest.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
-
           {uploadUrl && (
             <p>
-              ✅ Uploaded URL:{' '}
-              <a href={uploadUrl} target="_blank" rel="noopener noreferrer">
-                {uploadUrl}
-              </a>
+              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
             </p>
           )}
-
           <p>{statusMsg}</p>
         </div>
       )}
