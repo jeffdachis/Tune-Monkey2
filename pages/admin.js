@@ -27,32 +27,35 @@ export default function AdminPanel() {
   };
 
   const handleUpload = async () => {
-    if (!file || !selectedRequest) return alert('Missing file or request');
+    if (!file || !selectedRequest) {
+      alert('Missing file or request');
+      return;
+    }
 
     setStatusMsg('Uploading...');
 
     try {
-      const filePath = `${selectedRequest.id}/${file.name}`;
-
-      const { data: storageData, error: storageError } = await supabase.storage
+      const path = `${selectedRequest.id}/${file.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('tunes')
-        .upload(filePath, file, { upsert: true });
+        .upload(path, file, { upsert: true });
 
-      if (storageError) throw storageError;
+      if (uploadError) throw uploadError;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('tunes').getPublicUrl(filePath);
+      const { data: publicData } = supabase.storage.from('tunes').getPublicUrl(path);
+      const publicUrl = publicData.publicUrl;
+
+      const updatePayload = {
+        uploadUrl: publicUrl,
+        downloadUrl: publicUrl,
+        status: 'delivered',
+        file_type: file.type,
+        file_size: file.size,
+      };
 
       const { error: updateError } = await supabase
         .from('custom_requests')
-        .update({
-          uploadUrl: publicUrl,
-          downloadUrl: publicUrl,
-          status: 'delivered',
-          file_type: file.type || 'application/json',
-          file_size: file.size || null,
-        })
+        .update(updatePayload)
         .eq('id', selectedRequest.id);
 
       if (updateError) throw updateError;
@@ -86,11 +89,16 @@ export default function AdminPanel() {
           <h2>Upload .json for: {selectedRequest.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
+
           {uploadUrl && (
             <p>
-              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
+              ✅ Uploaded URL:{' '}
+              <a href={uploadUrl} target="_blank" rel="noopener noreferrer">
+                {uploadUrl}
+              </a>
             </p>
           )}
+
           <p>{statusMsg}</p>
         </div>
       )}
