@@ -14,9 +14,7 @@ export default function Dashboard() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (!user) {
-        setLoading(false);
+@@ -16,56 +20,130 @@ export default function Dashboard() {
         return;
       }
 
@@ -30,6 +28,7 @@ export default function Dashboard() {
       if (profileData) {
         setProfile(profileData);
       } else {
+        // Insert blank profile if it doesn't exist
         const { data: newProfile } = await supabase
           .from('user_profiles')
           .insert([{ user_id: user.id, email: user.email }])
@@ -38,7 +37,7 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
-      // Load tune requests
+      // Load requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
@@ -66,19 +65,11 @@ export default function Dashboard() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
-
   if (loading) return <p>Loading...</p>;
 
   return (
     <main style={{ padding: 40, maxWidth: 700 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Welcome, {profile.first_name || ''} {profile.last_name || ''}</h1>
-        <button onClick={handleLogout}>Log Out</button>
-      </div>
+      <h1>Dashboard</h1>
 
       <section style={{ marginBottom: 40 }}>
         <h2>Your Profile</h2>
