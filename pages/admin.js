@@ -1,52 +1,45 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
-  const [versions, setVersions] = useState({});
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [file, setFile] = useState(null);
-  const [uploadUrl, setUploadUrl] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [uploadUrl, setUploadUrl] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch requests
-      const { data: requestsData, error: requestError } = await supabase
+    const fetchRequests = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profileData?.is_admin) {
+        console.warn('Not authorized or not admin');
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('custom_requests')
-        .select('*, user_profiles (first_name, last_name, email)')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (requestError) {
-        console.error('Error fetching requests:', requestError);
-        return;
-      }
-
-      // Fetch file versions
-      const { data: fileVersions, error: versionError } = await supabase
-        .from('file_versions')
-        .select('*')
-        .order('uploaded_at', { ascending: false });
-
-      if (versionError) {
-        console.error('Error fetching file versions:', versionError);
-        return;
-      }
-
-      const grouped = fileVersions.reduce((acc, v) => {
-        const key = v.request_id;
-        acc[key] = acc[key] || [];
-        acc[key].push(v);
-        return acc;
-      }, {});
-
-      setRequests(requestsData);
-      setVersions(grouped);
-      setLoading(false);
+      if (error) console.error('Error fetching requests:', error);
+      else setRequests(data);
     };
 
-    fetchData();
+    fetchRequests();
   }, []);
 
   const handleFileChange = (e) => {
@@ -55,22 +48,26 @@ export default function AdminPanel() {
 
   const handleUpload = async () => {
     if (!file || !selectedRequest) return alert('Missing file or request');
+
     setStatusMsg('Uploading...');
 
     try {
       const filePath = `${selectedRequest.id}/${file.name}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, {
+          upsert: true,
+        });
 
-      if (uploadError) throw uploadError;
+      if (storageError) throw storageError;
 
       const {
         data: { publicUrl },
       } = supabase.storage.from('tunes').getPublicUrl(filePath);
 
-      await supabase.from('custom_requests')
+      const { error: updateError } = await supabase
+        .from('custom_requests')
         .update({
           uploadUrl: publicUrl,
           downloadUrl: publicUrl,
@@ -80,63 +77,34 @@ export default function AdminPanel() {
         })
         .eq('id', selectedRequest.id);
 
-      await supabase.from('file_versions').insert([
-        {
-          request_id: selectedRequest.id,
-          file_url: publicUrl,
-          file_type: file.type,
-          file_size: file.size,
-          version_name: file.name,
-        },
-      ]);
+      if (updateError) throw updateError;
 
       setUploadUrl(publicUrl);
       setStatusMsg('✅ Delivered!');
     } catch (err) {
-      console.error('Upload failed:', err);
+      console.error('Upload error:', err);
       setStatusMsg('❌ Upload failed');
     }
   };
 
-  if (loading) return <p style={{ padding: 40 }}>Loading admin panel...</p>;
-
   return (
     <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
-      {requests.length === 0 ? (
-        <p>No requests found.</p>
-      ) : (
-        <ul>
-          {requests.map((r) => (
-            <li key={r.id} style={{ marginBottom: 24 }}>
-              <strong>{r.user_profiles?.email || 'Unknown email'}</strong> — {r.motor} / {r.controller}<br />
-              Status: <strong>{r.status}</strong><br />
-              Submitted by: {r.user_id}<br />
-              <button onClick={() => setSelectedRequest(r)} style={{ marginTop: 5 }}>
-                Select
-              </button>
-
-              {versions[r.id] && (
-                <div style={{ marginTop: 10, paddingLeft: 20 }}>
-                  <em>File Versions:</em>
-                  <ul>
-                    {versions[r.id].map((v, idx) => (
-                      <li key={idx}>
-                        <a href={v.file_url} target="_blank" rel="noopener noreferrer" download>
-                          {v.version_name} ({(v.file_size / 1024).toFixed(1)} KB)
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul>
+        {requests.map((r) => (
+          <li key={r.id} style={{ marginBottom: 12 }}>
+            <strong>{r.first_name} {r.last_name}</strong> — {r.motor} / {r.controller}<br />
+            <small>User ID: {r.user_id}</small><br />
+            Status: {r.status || 'pending'}
+            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
+              Select
+            </button>
+          </li>
+        ))}
+      </ul>
 
       {selectedRequest && (
-        <div style={{ marginTop: 40 }}>
+        <div style={{ marginTop: 30 }}>
           <h2>Upload .json for: {selectedRequest.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
