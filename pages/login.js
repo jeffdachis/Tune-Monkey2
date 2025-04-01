@@ -5,13 +5,13 @@ import { useRouter } from 'next/router';
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
-  // ✅ Redirect if already logged in
   useEffect(() => {
+    // Check if user is already logged in and redirect
     const checkSession = async () => {
       const {
-        data: { session },
+        data: { session }
       } = await supabase.auth.getSession();
 
       if (session) {
@@ -21,52 +21,49 @@ export default function Login() {
 
     checkSession();
 
-    // Optional: listener for auth state change via magic link
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        router.push('/dashboard');
+    // Also listen for auth changes (magic link flow)
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN') {
+          router.push('/dashboard');
+        }
       }
-    });
+    );
 
     return () => {
-      subscription.unsubscribe();
+      listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setStatus('Sending magic link...');
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-    });
+    const { error } = await supabase.auth.signInWithOtp({ email });
 
     if (error) {
-      setStatus('Login error: ' + error.message);
+      alert('Error sending magic link: ' + error.message);
     } else {
-      setStatus('Magic link sent. Check your email.');
+      setSubmitted(true);
     }
   };
 
   return (
-    <main style={{ padding: 40, maxWidth: 500 }}>
+    <main style={{ padding: 40 }}>
       <h1>Login</h1>
-      <form onSubmit={handleLogin}>
-        <label>Email</label>
-        <input
-          type="email"
-          placeholder="your@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <button type="submit" style={{ marginTop: 10 }}>
-          Send Magic Link
-        </button>
-      </form>
-      <p>{status}</p>
+      {submitted ? (
+        <p>✅ Check your email for the magic link to log in.</p>
+      ) : (
+        <form onSubmit={handleLogin}>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{ marginRight: 10 }}
+          />
+          <button type="submit">Send Magic Link</button>
+        </form>
+      )}
     </main>
   );
 }
-
