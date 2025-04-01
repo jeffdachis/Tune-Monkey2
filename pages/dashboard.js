@@ -30,7 +30,6 @@ export default function Dashboard() {
       if (profileData) {
         setProfile(profileData);
       } else {
-        // Insert blank profile if it doesn't exist
         const { data: newProfile } = await supabase
           .from('user_profiles')
           .insert([{ user_id: user.id, email: user.email }])
@@ -39,7 +38,7 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
-      // Load requests
+      // Load tune requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
@@ -67,11 +66,19 @@ export default function Dashboard() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
   if (loading) return <p>Loading...</p>;
 
   return (
     <main style={{ padding: 40, maxWidth: 700 }}>
-      <h1>Dashboard</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Welcome, {profile.first_name || ''} {profile.last_name || ''}</h1>
+        <button onClick={handleLogout}>Log Out</button>
+      </div>
 
       <section style={{ marginBottom: 40 }}>
         <h2>Your Profile</h2>
@@ -116,34 +123,4 @@ export default function Dashboard() {
           ➕ Request New Tune
         </button>
 
-        {requests.length === 0 ? (
-          <p>No requests submitted yet.</p>
-        ) : (
-          <ul>
-            {requests.map((r) => (
-              <li key={r.id} style={{ marginBottom: 24 }}>
-                <strong>{r.motor} / {r.controller}</strong><br />
-                Status: <strong>{r.status || 'pending'}</strong><br />
-                File Type: {r.file_type || 'N/A'}<br />
-                File Size: {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'N/A'}<br />
-                {r.downloadUrl ? (
-                  <a
-                    href={`${r.downloadUrl}?download=${r.id}.json`}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: 'green', fontWeight: 'bold' }}
-                  >
-                    ⬇️ Download Tune
-                  </a>
-                ) : (
-                  <em style={{ color: 'gray' }}>Not delivered yet</em>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
-  );
-}
+        {requests.length === 0 ?
