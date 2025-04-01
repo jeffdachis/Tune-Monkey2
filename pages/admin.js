@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminPanel() {
@@ -7,39 +7,37 @@ export default function AdminPanel() {
   const [file, setFile] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
-  const [adminUser, setAdminUser] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('is_admin')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profile?.is_admin) return;
-
-      setAdminUser(user);
-
-      const { data: requestsData, error: fetchError } = await supabase
+    const fetchRequests = async () => {
+      const { data: requestData, error: requestError } = await supabase
         .from('custom_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (fetchError) {
-        console.error('Error fetching requests:', fetchError);
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('user_id, first_name, last_name, email');
+
+      if (requestError || profileError) {
+        console.error('Error fetching data:', requestError || profileError);
         return;
       }
 
-      setRequests(requestsData);
+      const combined = requestData.map((r) => {
+        const profile = profileData.find((p) => p.user_id === r.user_id) || {};
+        return {
+          ...r,
+          requester_name: `${profile.first_name || 'Unknown'} ${profile.last_name || ''}`.trim(),
+          requester_email: profile.email || 'Unknown'
+        };
+      });
+
+      setRequests(combined);
     };
 
-    fetchData();
+    fetchRequests();
   }, []);
 
   const handleFileChange = (e) => {
@@ -56,14 +54,12 @@ export default function AdminPanel() {
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
-        .upload(filePath, file, {
-          upsert: true,
-        });
+        .upload(filePath, file, { upsert: true });
 
       if (storageError) throw storageError;
 
       const {
-        data: { publicUrl },
+        data: { publicUrl }
       } = supabase.storage.from('tunes').getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
@@ -73,7 +69,7 @@ export default function AdminPanel() {
           downloadUrl: publicUrl,
           status: 'delivered',
           file_type: file.type,
-          file_size: file.size,
+          file_size: file.size
         })
         .eq('id', selectedRequest.id);
 
@@ -87,45 +83,47 @@ export default function AdminPanel() {
     }
   };
 
+  const filtered = search
+    ? requests.filter((r) =>
+        (r.motor + r.controller + r.requester_email + r.requester_name)
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      )
+    : requests;
+
   return (
     <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
-      {requests.length === 0 ? (
-        <p>No tune requests found.</p>
-      ) : (
-        <ul>
-          {requests.map((r) => (
-            <li key={r.id} style={{ marginBottom: 20 }}>
-              <strong>{r.motor} / {r.controller}</strong><br />
-              <small>User ID: {r.user_id}</small><br />
-              <small>Email: {r.email || 'unknown'}</small><br />
-              Status: <strong>{r.status || 'pending'}</strong><br />
-              {r.downloadUrl && (
-                <a
-                  href={`${r.downloadUrl}?download=${r.id}.json`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  ⬇️ Download
-                </a>
-              )}
-              <br />
-              <button onClick={() => setSelectedRequest(r)}>Select</button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <input
+        type="text"
+        placeholder="Search motor, controller, name or email..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ marginBottom: 20, width: '100%' }}
+      />
+
+      <ul>
+        {filtered.map((r) => (
+          <li key={r.id} style={{ marginBottom: 12 }}>
+            <strong>{r.requester_name}</strong> ({r.requester_email})<br />
+            <strong>{r.motor} / {r.controller}</strong><br />
+            Status: <strong>{r.status || 'pending'}</strong>
+            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
+              Select
+            </button>
+          </li>
+        ))}
+      </ul>
 
       {selectedRequest && (
         <div style={{ marginTop: 30 }}>
           <h2>Upload .json for: {selectedRequest.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
-          <button onClick={handleUpload} style={{ marginLeft: 10 }}>
-            Upload
-          </button>
+          <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
           {uploadUrl && (
             <p>
-              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
+              ✅ Uploaded URL:{' '}
+              <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
             </p>
           )}
           <p>{statusMsg}</p>
