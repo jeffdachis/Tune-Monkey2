@@ -1,46 +1,49 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import { useRouter } from 'next/router';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Login() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
-  const router = useRouter();
 
+  // Redirect to /dashboard if logged in
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         router.push('/dashboard');
       }
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        router.push('/dashboard');
-      }
-    });
-    return () => listener?.subscription.unsubscribe();
+    };
+    checkSession();
   }, []);
 
-  const handleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setMessage('Sending magic link...');
+    const { error } = await supabase.auth.signInWithOtp({ email });
     if (error) {
-      setMessage("Login failed.");
+      setMessage('Error sending link.');
     } else {
-      setMessage("Check your email for the login link.");
+      setMessage('Check your email for the login link.');
     }
   };
 
   return (
-    <main>
-      <h1>TUNE MONKEY LOGIN</h1>
-      <input type="email" placeholder="Your email" onChange={(e) => setEmail(e.target.value)} />
-      <button onClick={handleLogin}>Send Magic Link</button>
-      <p>{message}</p>
+    <main style={{ padding: 40, maxWidth: 500 }}>
+      <h1>Login</h1>
+      <form onSubmit={handleLogin}>
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          style={{ width: '100%', marginBottom: 12 }}
+        />
+        <button type="submit">Send Magic Link</button>
+      </form>
+      {message && <p style={{ marginTop: 20 }}>{message}</p>}
     </main>
   );
 }
