@@ -8,24 +8,25 @@ export default function Login() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in and redirect
-    const checkSession = async () => {
+    const forceRedirectIfSignedIn = async () => {
       const {
         data: { session }
       } = await supabase.auth.getSession();
 
       if (session) {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       }
     };
 
-    checkSession();
+    // Handle redirect after magic link
+    if (window.location.hash && window.location.hash.includes('access_token')) {
+      forceRedirectIfSignedIn();
+    }
 
-    // Also listen for auth changes (magic link flow)
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN') {
-          router.push('/dashboard');
+          router.replace('/dashboard');
         }
       }
     );
