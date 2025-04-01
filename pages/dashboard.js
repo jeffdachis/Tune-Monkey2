@@ -16,11 +16,10 @@ export default function Dashboard() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setLoading(false);
+        router.push('/login');
         return;
       }
 
-      // Load profile
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('*')
@@ -38,7 +37,6 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
-      // Load tune requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
@@ -46,7 +44,6 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (requestData) setRequests(requestData);
-
       setLoading(false);
     };
 
@@ -67,11 +64,24 @@ export default function Dashboard() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
+  const logout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
   if (loading) return <p>Loading...</p>;
 
   return (
     <main style={{ padding: 40, maxWidth: 700 }}>
-      <h1>Dashboard</h1>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Dashboard</h1>
+        <div>
+          {profile.first_name && (
+            <span style={{ marginRight: 10 }}>Welcome, {profile.first_name}!</span>
+          )}
+          <button onClick={logout}>Logout</button>
+        </div>
+      </header>
 
       <section style={{ marginBottom: 40 }}>
         <h2>Your Profile</h2>
@@ -132,4 +142,18 @@ export default function Dashboard() {
                     download
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: 'green', fontWeight: 'bold'
+                    style={{ color: 'green', fontWeight: 'bold' }}
+                  >
+                    ⬇️ Download Tune
+                  </a>
+                ) : (
+                  <em style={{ color: 'gray' }}>Not delivered yet</em>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
+  );
+}
