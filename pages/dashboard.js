@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import { useRouter } from 'next/router';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -28,13 +28,6 @@ export default function Dashboard() {
 
       if (profileData) {
         setProfile(profileData);
-      } else {
-        const { data: newProfile } = await supabase
-          .from('user_profiles')
-          .insert([{ user_id: user.id, email: user.email }])
-          .select()
-          .single();
-        setProfile(newProfile);
       }
 
       const { data: requestData } = await supabase
@@ -43,12 +36,19 @@ export default function Dashboard() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (requestData) setRequests(requestData);
+      if (requestData) {
+        setRequests(requestData);
+      }
+
       setLoading(false);
     };
 
     init();
   }, []);
+
+  const updateField = (field, value) => {
+    setProfile((prev) => ({ ...prev, [field]: value }));
+  };
 
   const saveProfile = async () => {
     setSaving(true);
@@ -58,10 +58,6 @@ export default function Dashboard() {
       .eq('user_id', profile.user_id);
     setSaving(false);
     if (error) alert('Failed to save profile');
-  };
-
-  const updateField = (field, value) => {
-    setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleLogout = async () => {
@@ -127,4 +123,28 @@ export default function Dashboard() {
           <ul>
             {requests.map((r) => (
               <li key={r.id} style={{ marginBottom: 24 }}>
-                <strong>{r.motor} / {r.controller}</strong
+                <strong>{r.motor} / {r.controller}</strong><br />
+                Status: <strong>{r.status || 'pending'}</strong><br />
+                File Type: {r.file_type || 'N/A'}<br />
+                File Size: {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'N/A'}<br />
+                {r.downloadUrl ? (
+                  <a
+                    href={`${r.downloadUrl}?download=${r.id}.json`}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'green', fontWeight: 'bold' }}
+                  >
+                    ⬇️ Download Tune
+                  </a>
+                ) : (
+                  <em style={{ color: 'gray' }}>Not delivered yet</em>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
+  );
+}
