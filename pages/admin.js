@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminPanel() {
@@ -7,32 +7,39 @@ export default function AdminPanel() {
   const [file, setFile] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [adminUser, setAdminUser] = useState(null);
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      const { data, error } = await supabase
+    const fetchData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile?.is_admin) return;
+
+      setAdminUser(user);
+
+      const { data: requestsData, error: fetchError } = await supabase
         .from('custom_requests')
-        .select(`
-          *,
-          user_profiles (
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching requests:', error);
-      } else {
-        setRequests(data);
+      if (fetchError) {
+        console.error('Error fetching requests:', fetchError);
+        return;
       }
 
-      setLoading(false);
+      setRequests(requestsData);
     };
 
-    fetchRequests();
+    fetchData();
   }, []);
 
   const handleFileChange = (e) => {
@@ -40,22 +47,24 @@ export default function AdminPanel() {
   };
 
   const handleUpload = async () => {
-    if (!file || !selectedRequest) {
-      alert('Missing file or request');
-      return;
-    }
+    if (!file || !selectedRequest) return alert('Missing file or request');
 
     setStatusMsg('Uploading...');
+
     try {
       const filePath = `${selectedRequest.id}/${file.name}`;
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, file, {
+          upsert: true,
+        });
 
       if (storageError) throw storageError;
 
-      const { data: { publicUrl } } = supabase.storage.from('tunes').getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('tunes').getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
         .from('custom_requests')
@@ -78,39 +87,42 @@ export default function AdminPanel() {
     }
   };
 
-  if (loading) return <main style={{ padding: 40 }}><p>Loading admin panel...</p></main>;
-
   return (
     <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
-      <ul>
-        {requests.map((r) => (
-          <li key={r.id} style={{ marginBottom: 18 }}>
-            <strong>{r.user_profiles?.first_name || 'Unknown'} {r.user_profiles?.last_name || ''}</strong><br />
-            <small>{r.user_profiles?.email || 'No email'}</small><br />
-            <strong>{r.motor}</strong> / {r.controller}<br />
-            Status: <strong>{r.status || 'pending'}</strong><br />
-            File: {r.file_type || 'N/A'}, {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'N/A'}<br />
-            {r.downloadUrl ? (
-              <a href={`${r.downloadUrl}?download=${r.id}.json`} target="_blank" rel="noopener noreferrer">
-                ⬇️ Download
-              </a>
-            ) : (
-              <em>Not delivered</em>
-            )}
-            <br />
-            <button style={{ marginTop: 4 }} onClick={() => setSelectedRequest(r)}>
-              Select
-            </button>
-          </li>
-        ))}
-      </ul>
+      {requests.length === 0 ? (
+        <p>No tune requests found.</p>
+      ) : (
+        <ul>
+          {requests.map((r) => (
+            <li key={r.id} style={{ marginBottom: 20 }}>
+              <strong>{r.motor} / {r.controller}</strong><br />
+              <small>User ID: {r.user_id}</small><br />
+              <small>Email: {r.email || 'unknown'}</small><br />
+              Status: <strong>{r.status || 'pending'}</strong><br />
+              {r.downloadUrl && (
+                <a
+                  href={`${r.downloadUrl}?download=${r.id}.json`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  ⬇️ Download
+                </a>
+              )}
+              <br />
+              <button onClick={() => setSelectedRequest(r)}>Select</button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {selectedRequest && (
         <div style={{ marginTop: 30 }}>
-          <h2>Upload Tune for Request: {selectedRequest.id}</h2>
+          <h2>Upload .json for: {selectedRequest.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
-          <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
+          <button onClick={handleUpload} style={{ marginLeft: 10 }}>
+            Upload
+          </button>
           {uploadUrl && (
             <p>
               ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
