@@ -4,14 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 
 export default function RequestTune() {
   const router = useRouter();
-
   const [profile, setProfile] = useState(null);
-  const [form, setForm] = useState({
-    motor: '',
-    controller: '',
-    notes: ''
-  });
-
+  const [form, setForm] = useState({ motor: '', controller: '', notes: '' });
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -23,7 +17,7 @@ export default function RequestTune() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/login');
+        router.push('/');
         return;
       }
 
@@ -49,7 +43,7 @@ export default function RequestTune() {
 
   const submitRequest = async () => {
     if (!form.motor || !form.controller) {
-      setStatus('❌ Please fill in motor and controller.');
+      setStatus('Please fill in motor and controller.');
       return;
     }
 
@@ -60,76 +54,49 @@ export default function RequestTune() {
       data: { user }
     } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from('custom_requests').insert([
-      {
-        user_id: user.id,
-        email: profile.email,
-        motor: form.motor,
-        controller: form.controller,
-        notes: form.notes,
-        status: 'pending',
-        requester_name: `${profile.first_name} ${profile.last_name}`
-      }
-    ]);
+    const { error } = await supabase.from('custom_requests').insert({
+      ...form,
+      user_id: user.id,
+      email: profile.email,
+      requester_name: `${profile.first_name} ${profile.last_name}`,
+      status: 'pending'
+    });
 
+    setSubmitting(false);
     if (error) {
       console.error('Insert error:', error);
-      setStatus('❌ Failed to submit request.');
+      setStatus('Error submitting request.');
     } else {
       setStatus('✅ Request submitted!');
       setForm({ motor: '', controller: '', notes: '' });
-      setTimeout(() => router.push('/dashboard'), 2000);
     }
-
-    setSubmitting(false);
   };
 
   if (blocked) {
     return (
       <main style={{ padding: 40 }}>
-        <h1>Profile Incomplete</h1>
-        <p>
-          You must complete your profile first (first name, last name, and mobile number).
+        <p style={{ color: 'red' }}>
+          You must complete your profile before submitting a tune request.
         </p>
-        <button onClick={() => router.push('/dashboard')}>← Back to Dashboard</button>
+        <button onClick={() => router.push('/dashboard')}>Back to Dashboard</button>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 40, maxWidth: 600 }}>
-      <h1>Request a New Tune</h1>
-      <button onClick={() => router.push('/dashboard')} style={{ marginBottom: 20 }}>
-        ← Back to Dashboard
-      </button>
-
-      <label>Motor *</label>
-      <input
-        value={form.motor}
-        onChange={(e) => updateField('motor', e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
-
-      <label>Controller *</label>
-      <input
-        value={form.controller}
-        onChange={(e) => updateField('controller', e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
-
+    <main style={{ padding: 40 }}>
+      <h1>Request a Custom Tune</h1>
+      <label>Motor</label>
+      <input value={form.motor} onChange={(e) => updateField('motor', e.target.value)} />
+      <label>Controller</label>
+      <input value={form.controller} onChange={(e) => updateField('controller', e.target.value)} />
       <label>Notes</label>
-      <textarea
-        value={form.notes}
-        onChange={(e) => updateField('notes', e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-        rows={4}
-      />
-
-      <button onClick={submitRequest} disabled={submitting} style={{ marginTop: 10 }}>
-        {submitting ? 'Submitting...' : 'Submit Tune Request'}
+      <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} />
+      <button onClick={submitRequest} disabled={submitting}>
+        {submitting ? 'Submitting...' : 'Submit'}
       </button>
-
-      {status && <p style={{ marginTop: 20 }}>{status}</p>}
+      <p>{status}</p>
+      <button onClick={() => router.push('/dashboard')} style={{ marginTop: 20 }}>⬅ Back to Dashboard</button>
     </main>
   );
 }
