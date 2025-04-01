@@ -1,31 +1,68 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [file, setFile] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
-  const [filter, setFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const fetchAllRequests = async () => {
-      const { data, error } = await supabase
+    const loadAdminData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile?.is_admin) {
+        alert('Access denied');
+        return;
+      }
+
+      const { data: allRequests, error: requestError } = await supabase
         .from('custom_requests')
-        .select('*, user_profiles:user_id (first_name, last_name, email)')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching all requests:', error);
+      if (requestError) {
+        console.error('Error fetching requests:', requestError);
       } else {
-        setRequests(data);
+        setRequests(allRequests);
+        setFilteredRequests(allRequests);
       }
     };
 
-    fetchAllRequests();
+    loadAdminData();
   }, []);
+
+  useEffect(() => {
+    let updated = [...requests];
+
+    if (statusFilter !== 'all') {
+      updated = updated.filter((r) => r.status === statusFilter);
+    }
+
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      updated = updated.filter(
+        (r) =>
+          (r.email && r.email.toLowerCase().includes(lower)) ||
+          (r.requester_name && r.requester_name.toLowerCase().includes(lower))
+      );
+    }
+
+    setFilteredRequests(updated);
+  }, [searchTerm, statusFilter, requests]);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -43,13 +80,15 @@ export default function AdminPanel() {
 
       if (storageError) throw storageError;
 
-      const { data: publicData } = supabase.storage.from('tunes').getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage
+        .from('tunes')
+        .getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
         .from('custom_requests')
         .update({
-          uploadUrl: publicData.publicUrl,
-          downloadUrl: publicData.publicUrl,
+          uploadUrl: publicUrl,
+          downloadUrl: publicUrl,
           status: 'delivered',
           file_type: file.type,
           file_size: file.size,
@@ -58,7 +97,7 @@ export default function AdminPanel() {
 
       if (updateError) throw updateError;
 
-      setUploadUrl(publicData.publicUrl);
+      setUploadUrl(publicUrl);
       setStatusMsg('✅ Delivered!');
     } catch (err) {
       console.error('Upload error:', err);
@@ -66,29 +105,20 @@ export default function AdminPanel() {
     }
   };
 
-  const filteredRequests = requests.filter((r) => {
-    const matchesStatus = filter === 'All' || r.status === filter;
-    const fullName = `${r.user_profiles?.first_name || ''} ${r.user_profiles?.last_name || ''}`.toLowerCase();
-    const email = (r.user_profiles?.email || '').toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchTerm.toLowerCase()) || email.includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
-
   return (
     <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
 
       <div style={{ marginBottom: 20 }}>
         <label>Status Filter: </label>
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ marginRight: 10 }}>
-          <option value="All">All</option>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="all">All</option>
           <option value="pending">Pending</option>
           <option value="delivered">Delivered</option>
         </select>
 
         <input
-          type="text"
+          style={{ marginLeft: 20 }}
           placeholder="Search name/email"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -97,11 +127,13 @@ export default function AdminPanel() {
 
       <ul>
         {filteredRequests.map((r) => (
-          <li key={r.id} style={{ marginBottom: 16 }}>
-            <strong>{r.user_profiles?.email || 'Unknown email'}</strong> — {r.motor} / {r.controller}<br />
+          <li key={r.id} style={{ marginBottom: 12 }}>
+            <strong>{r.email}</strong> — {r.motor} / {r.controller}<br />
             User ID: {r.user_id}<br />
             Status: {r.status || 'pending'}
-            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>Select</button>
+            <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
+              Select
+            </button>
           </li>
         ))}
       </ul>
@@ -113,7 +145,10 @@ export default function AdminPanel() {
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
           {uploadUrl && (
             <p>
-              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
+              ✅ Uploaded URL:{' '}
+              <a href={uploadUrl} target="_blank" rel="noopener noreferrer">
+                {uploadUrl}
+              </a>
             </p>
           )}
           <p>{statusMsg}</p>
