@@ -14,7 +14,9 @@ export default function Dashboard() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-@@ -16,56 +20,130 @@ export default function Dashboard() {
+
+      if (!user) {
+        setLoading(false);
         return;
       }
 
@@ -28,7 +30,6 @@ export default function Dashboard() {
       if (profileData) {
         setProfile(profileData);
       } else {
-        // Insert blank profile if it doesn't exist
         const { data: newProfile } = await supabase
           .from('user_profiles')
           .insert([{ user_id: user.id, email: user.email }])
@@ -37,7 +38,7 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
-      // Load requests
+      // Load tune requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
@@ -45,6 +46,7 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
 
       if (requestData) setRequests(requestData);
+
       setLoading(false);
     };
 
@@ -130,18 +132,4 @@ export default function Dashboard() {
                     download
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: 'green', fontWeight: 'bold' }}
-                  >
-                    ⬇️ Download Tune
-                  </a>
-                ) : (
-                  <em style={{ color: 'gray' }}>Not delivered yet</em>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
-  );
-}
+                    style={{ color: 'green', fontWeight: 'bold'
