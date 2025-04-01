@@ -16,11 +16,10 @@ export default function Dashboard() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setLoading(false);
+        router.push('/login');
         return;
       }
 
-      // Load profile
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('*')
@@ -38,7 +37,6 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
-      // Load tune requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
@@ -123,4 +121,10 @@ export default function Dashboard() {
           ➕ Request New Tune
         </button>
 
-        {requests.length === 0 ?
+        {requests.length === 0 ? (
+          <p>No requests submitted yet.</p>
+        ) : (
+          <ul>
+            {requests.map((r) => (
+              <li key={r.id} style={{ marginBottom: 24 }}>
+                <strong>{r.motor} / {r.controller}</strong
