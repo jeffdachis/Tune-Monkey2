@@ -16,10 +16,11 @@ export default function Dashboard() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/login');
+        setLoading(false);
         return;
       }
 
+      // Load profile
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('*')
@@ -37,6 +38,7 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
+      // Load requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
@@ -64,56 +66,73 @@ export default function Dashboard() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-  };
-
   if (loading) return <p>Loading...</p>;
 
   return (
     <main style={{ padding: 40, maxWidth: 700 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Dashboard</h1>
-        <div>
-          {profile.first_name && (
-            <span style={{ marginRight: 10 }}>Welcome, {profile.first_name}!</span>
-          )}
-          <button onClick={logout}>Logout</button>
-        </div>
-      </header>
+      <h1>Dashboard</h1>
 
       <section style={{ marginBottom: 40 }}>
         <h2>Your Profile</h2>
         <label>First Name *</label>
-        <input value={profile.first_name || ''} onChange={(e) => updateField('first_name', e.target.value)} />
+        <input
+          value={profile.first_name || ''}
+          onChange={(e) => updateField('first_name', e.target.value)}
+        />
         <label>Last Name *</label>
-        <input value={profile.last_name || ''} onChange={(e) => updateField('last_name', e.target.value)} />
+        <input
+          value={profile.last_name || ''}
+          onChange={(e) => updateField('last_name', e.target.value)}
+        />
         <label>Mobile Phone *</label>
-        <input value={profile.phone || ''} onChange={(e) => updateField('phone', e.target.value)} />
+        <input
+          value={profile.phone || ''}
+          onChange={(e) => updateField('phone', e.target.value)}
+        />
         <label>Email</label>
         <input value={profile.email || ''} readOnly />
 
         <h3>Bike Info (optional)</h3>
         <label>Bike Brand</label>
-        <input value={profile.bike_brand || ''} onChange={(e) => updateField('bike_brand', e.target.value)} />
+        <input
+          value={profile.bike_brand || ''}
+          onChange={(e) => updateField('bike_brand', e.target.value)}
+        />
         <label>Bike Model</label>
-        <input value={profile.bike_model || ''} onChange={(e) => updateField('bike_model', e.target.value)} />
+        <input
+          value={profile.bike_model || ''}
+          onChange={(e) => updateField('bike_model', e.target.value)}
+        />
         <label>Battery Size</label>
-        <input value={profile.battery_size || ''} onChange={(e) => updateField('battery_size', e.target.value)} />
+        <input
+          value={profile.battery_size || ''}
+          onChange={(e) => updateField('battery_size', e.target.value)}
+        />
         <label>Motor Info</label>
-        <input value={profile.motor_info || ''} onChange={(e) => updateField('motor_info', e.target.value)} />
+        <input
+          value={profile.motor_info || ''}
+          onChange={(e) => updateField('motor_info', e.target.value)}
+        />
         <label>Controller Type</label>
-        <input value={profile.controller_type || ''} onChange={(e) => updateField('controller_type', e.target.value)} />
+        <input
+          value={profile.controller_type || ''}
+          onChange={(e) => updateField('controller_type', e.target.value)}
+        />
         <label>Wheel Size</label>
-        <select value={profile.wheel_size || ''} onChange={(e) => updateField('wheel_size', e.target.value)}>
+        <select
+          value={profile.wheel_size || ''}
+          onChange={(e) => updateField('wheel_size', e.target.value)}
+        >
           <option value="">Select...</option>
           <option value="20">20"</option>
           <option value="24">24"</option>
           <option value="other">Other</option>
         </select>
         <label>Rider Weight (lbs)</label>
-        <input value={profile.rider_weight || ''} onChange={(e) => updateField('rider_weight', e.target.value)} />
+        <input
+          value={profile.rider_weight || ''}
+          onChange={(e) => updateField('rider_weight', e.target.value)}
+        />
 
         <button onClick={saveProfile} disabled={saving} style={{ marginTop: 20 }}>
           {saving ? 'Saving...' : 'Save Profile'}
