@@ -1,28 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [file, setFile] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState('All');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const fetchRequests = async () => {
       const { data, error } = await supabase
         .from('custom_requests')
-        .select('*, user_profiles(first_name, last_name, email, phone)')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching requests:', error);
-      } else {
+      if (error) console.error('Error loading requests:', error);
+      else {
         setRequests(data);
-        setFiltered(data);
+        setFiltered(data); // initial unfiltered set
       }
     };
 
@@ -32,30 +31,32 @@ export default function AdminPanel() {
   useEffect(() => {
     let result = [...requests];
 
-    if (filterStatus !== 'all') {
-      result = result.filter((r) => r.status === filterStatus);
+    if (filter !== 'All') {
+      result = result.filter((r) => (r.status || 'pending') === filter);
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((r) =>
-        r.user_profiles?.email?.toLowerCase().includes(q) ||
-        r.user_profiles?.first_name?.toLowerCase().includes(q) ||
-        r.user_profiles?.last_name?.toLowerCase().includes(q)
+    if (search.trim()) {
+      const term = search.toLowerCase();
+      result = result.filter(
+        (r) =>
+          (r.requester_name && r.requester_name.toLowerCase().includes(term)) ||
+          (r.email && r.email.toLowerCase().includes(term))
       );
     }
 
     setFiltered(result);
-  }, [filterStatus, searchQuery, requests]);
+  }, [filter, search, requests]);
 
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
 
   const handleUpload = async () => {
-    if (!file || !selectedRequest) return alert('Missing file or request');
-    setStatusMsg('Uploading...');
+    if (!file || !selected) return alert('Missing file or request');
 
+    setStatusMsg('Uploading...');
     try {
-      const filePath = `${selectedRequest.id}/${file.name}`;
+      const filePath = `${selected.id}/${file.name}`;
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
@@ -63,20 +64,22 @@ export default function AdminPanel() {
 
       if (storageError) throw storageError;
 
-      const {
-        data: { publicUrl }
-      } = supabase.storage.from('tunes').getPublicUrl(filePath);
+      const { data: publicData } = supabase.storage
+        .from('tunes')
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicData?.publicUrl;
 
       const { error: updateError } = await supabase
         .from('custom_requests')
         .update({
           uploadUrl: publicUrl,
           downloadUrl: publicUrl,
-          status: 'delivered',
           file_type: file.type,
-          file_size: file.size
+          file_size: file.size,
+          status: 'delivered'
         })
-        .eq('id', selectedRequest.id);
+        .eq('id', selected.id);
 
       if (updateError) throw updateError;
 
@@ -94,8 +97,8 @@ export default function AdminPanel() {
 
       <div style={{ marginBottom: 20 }}>
         <label>Status Filter: </label>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="all">All</option>
+        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+          <option value="All">All</option>
           <option value="pending">Pending</option>
           <option value="delivered">Delivered</option>
         </select>
@@ -103,41 +106,44 @@ export default function AdminPanel() {
         <input
           type="text"
           placeholder="Search name/email"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ marginLeft: 20 }}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ marginLeft: 10 }}
         />
       </div>
 
-      <ul>
-        {filtered.map((r) => (
-          <li key={r.id} style={{ marginBottom: 16 }}>
-            <strong>{r.motor} / {r.controller}</strong><br />
-            <span>Status: {r.status || 'pending'}</span><br />
-            <span>File Type: {r.file_type || 'N/A'} — Size: {r.file_size ? `${(r.file_size / 1024).toFixed(1)} KB` : 'N/A'}</span><br />
-            {r.user_profiles && (
-              <span>
-                👤 {r.user_profiles.first_name} {r.user_profiles.last_name} — {r.user_profiles.email} — 📞 {r.user_profiles.phone}
-              </span>
-            )}
-            <br />
-            <button style={{ marginTop: 4 }} onClick={() => setSelectedRequest(r)}>
-              Select
-            </button>
-          </li>
-        ))}
-      </ul>
+      {filtered.length === 0 ? (
+        <p>No matching tune requests.</p>
+      ) : (
+        <ul>
+          {filtered.map((r) => (
+            <li key={r.id} style={{ marginBottom: 20 }}>
+              <strong>{r.email || 'No email'}</strong> — {r.motor} / {r.controller}
+              <br />
+              {r.requester_name && <div>Name: {r.requester_name}</div>}
+              <small>User ID: {r.user_id}</small><br />
+              Status: {r.status || 'pending'}
+              <button style={{ marginLeft: 10 }} onClick={() => setSelected(r)}>
+                Select
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      {selectedRequest && (
+      {selected && (
         <div style={{ marginTop: 30 }}>
-          <h2>Upload .json for: {selectedRequest.id}</h2>
+          <h2>Upload .json for: {selected.id}</h2>
           <input type="file" accept=".json" onChange={handleFileChange} />
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>
             Upload
           </button>
           {uploadUrl && (
             <p>
-              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
+              ✅ Uploaded URL:{' '}
+              <a href={uploadUrl} target="_blank" rel="noopener noreferrer">
+                {uploadUrl}
+              </a>
             </p>
           )}
           <p>{statusMsg}</p>
