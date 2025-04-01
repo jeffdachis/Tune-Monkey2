@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
+import { useRouter } from 'next/router';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -16,10 +16,11 @@ export default function Dashboard() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/login');
+        setLoading(false);
         return;
       }
 
+      // Load profile
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('*')
@@ -28,27 +29,28 @@ export default function Dashboard() {
 
       if (profileData) {
         setProfile(profileData);
+      } else {
+        const { data: newProfile } = await supabase
+          .from('user_profiles')
+          .insert([{ user_id: user.id, email: user.email }])
+          .select()
+          .single();
+        setProfile(newProfile);
       }
 
+      // Load tune requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (requestData) {
-        setRequests(requestData);
-      }
-
+      if (requestData) setRequests(requestData);
       setLoading(false);
     };
 
     init();
   }, []);
-
-  const updateField = (field, value) => {
-    setProfile((prev) => ({ ...prev, [field]: value }));
-  };
 
   const saveProfile = async () => {
     setSaving(true);
@@ -58,6 +60,10 @@ export default function Dashboard() {
       .eq('user_id', profile.user_id);
     setSaving(false);
     if (error) alert('Failed to save profile');
+  };
+
+  const updateField = (field, value) => {
+    setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleLogout = async () => {
