@@ -3,128 +3,99 @@ import { supabase } from '../lib/supabaseClient';
 
 export default function AdminPanel() {
   const [requests, setRequests] = useState([]);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [file, setFile] = useState(null);
-  const [statusMsg, setStatusMsg] = useState('');
-  const [uploadUrl, setUploadUrl] = useState('');
-  const [sortBy, setSortBy] = useState('newest');
-
-  const fetchRequests = async () => {
-    const { data, error } = await supabase
-      .from('custom_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching requests:', error);
-    } else {
-      setRequests(data);
-    }
-  };
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [isAuthorized, setIsAuthorized] = useState(null); // null = loading, false = blocked
 
   useEffect(() => {
-    fetchRequests();
+    const fetchData = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        setIsAuthorized(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('is_admin')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile || !profile.is_admin) {
+        setIsAuthorized(false);
+        return;
+      }
+
+      setIsAuthorized(true);
+
+      const { data: allRequests, error: requestError } = await supabase
+        .from('custom_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (requestError) {
+        console.error('Error fetching requests:', requestError);
+        return;
+      }
+
+      setRequests(allRequests);
+    };
+
+    fetchData();
   }, []);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
+  const filteredRequests = requests.filter((r) => {
+    const matchesStatus = statusFilter === 'all' || (r.status || 'pending') === statusFilter;
+    const matchesSearch =
+      r.email?.toLowerCase().includes(search.toLowerCase()) ||
+      r.motor?.toLowerCase().includes(search.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
-  const handleUpload = async () => {
-    if (!file || !selectedRequest) return alert('Missing file or request');
-
-    setStatusMsg('Uploading...');
-
-    try {
-      const filePath = `${selectedRequest.id}/${file.name}`;
-
-      const { data: storageData, error: storageError } = await supabase.storage
-        .from('tunes')
-        .upload(filePath, file, { upsert: true });
-
-      if (storageError) throw storageError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('tunes').getPublicUrl(filePath);
-
-      const { error: updateError } = await supabase
-        .from('custom_requests')
-        .update({
-          uploadUrl: publicUrl,
-          downloadUrl: publicUrl,
-          status: 'delivered',
-          file_type: file.type,
-          file_size: file.size,
-        })
-        .eq('id', selectedRequest.id);
-
-      if (updateError) throw updateError;
-
-      setUploadUrl(publicUrl);
-      setStatusMsg('✅ Delivered!');
-      fetchRequests();
-    } catch (err) {
-      console.error('Upload error:', err);
-      setStatusMsg('❌ Upload failed');
-    }
-  };
-
-  const sortRequests = (requests) => {
-    const sorted = [...requests];
-    switch (sortBy) {
-      case 'oldest':
-        return sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-      case 'status':
-        return sorted.sort((a, b) => (a.status || '').localeCompare(b.status || ''));
-      case 'email':
-        return sorted.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
-      case 'newest':
-      default:
-        return sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    }
-  };
+  if (isAuthorized === null) return <p>Loading...</p>;
+  if (isAuthorized === false) return <p style={{ padding: 40, fontWeight: 'bold' }}>Access Denied.</p>;
 
   return (
-    <main style={{ padding: 40, maxWidth: 1000 }}>
+    <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
 
-      <label>Sort by:&nbsp;</label>
-      <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ marginBottom: 20 }}>
-        <option value="newest">Newest</option>
-        <option value="oldest">Oldest</option>
-        <option value="status">Status</option>
-        <option value="email">Email</option>
-      </select>
+      <div style={{ marginBottom: 20 }}>
+        <label>Status Filter: </label>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="all">All</option>
+          <option value="pending">Pending</option>
+          <option value="delivered">Delivered</option>
+        </select>
 
-      <ul>
-        {sortRequests(requests).map((r) => (
-          <li key={r.id} style={{ marginBottom: 12 }}>
-            <strong>{r.email}</strong> — {r.motor} / {r.controller}<br />
-            Status: {r.status || 'pending'}<br />
-            {r.downloadUrl ? (
-              <a href={r.downloadUrl} target="_blank" rel="noopener noreferrer">Download</a>
-            ) : (
-              <em>No file uploaded</em>
-            )}
-            <br />
-            <button style={{ marginTop: 5 }} onClick={() => setSelectedRequest(r)}>Select</button>
-          </li>
-        ))}
-      </ul>
+        <input
+          style={{ marginLeft: 20 }}
+          type="text"
+          placeholder="Search name/email"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-      {selectedRequest && (
-        <div style={{ marginTop: 30 }}>
-          <h2>Upload .json for: {selectedRequest.id}</h2>
-          <input type="file" accept=".json" onChange={handleFileChange} />
-          <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
-          {uploadUrl && (
-            <p>
-              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
-            </p>
-          )}
-          <p>{statusMsg}</p>
-        </div>
+      {filteredRequests.length === 0 ? (
+        <p>No matching requests.</p>
+      ) : (
+        <ul>
+          {filteredRequests.map((r) => (
+            <li key={r.id} style={{ marginBottom: 20 }}>
+              <strong>{r.email}</strong> — {r.motor} / {r.controller}<br />
+              Status: {r.status || 'pending'}<br />
+              File: {r.downloadUrl ? (
+                <a href={r.downloadUrl} target="_blank" rel="noopener noreferrer">Download</a>
+              ) : (
+                <em>Not uploaded</em>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </main>
   );
