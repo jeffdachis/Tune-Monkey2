@@ -9,7 +9,7 @@ export default function AdminPanel() {
   const [uploadUrl, setUploadUrl] = useState('');
 
   useEffect(() => {
-    const fetchRequests = async () => {
+    const fetchData = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -30,16 +30,38 @@ export default function AdminPanel() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: requestsData, error: requestsError } = await supabase
         .from('custom_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) console.error('Error fetching requests:', error);
-      else setRequests(data);
+      if (requestsError) {
+        console.error('Error fetching requests:', requestsError);
+        return;
+      }
+
+      const uniqueUserIds = [...new Set(requestsData.map(r => r.user_id))];
+      const { data: userProfiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('user_id, first_name, last_name, email')
+        .in('user_id', uniqueUserIds);
+
+      const userMap = {};
+      if (userProfiles) {
+        for (const user of userProfiles) {
+          userMap[user.user_id] = user;
+        }
+      }
+
+      const merged = requestsData.map(req => ({
+        ...req,
+        requester: userMap[req.user_id] || {},
+      }));
+
+      setRequests(merged);
     };
 
-    fetchRequests();
+    fetchData();
   }, []);
 
   const handleFileChange = (e) => {
@@ -56,9 +78,7 @@ export default function AdminPanel() {
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from('tunes')
-        .upload(filePath, file, {
-          upsert: true,
-        });
+        .upload(filePath, file, { upsert: true });
 
       if (storageError) throw storageError;
 
@@ -93,7 +113,9 @@ export default function AdminPanel() {
       <ul>
         {requests.map((r) => (
           <li key={r.id} style={{ marginBottom: 12 }}>
-            <strong>{r.first_name} {r.last_name}</strong> — {r.motor} / {r.controller}<br />
+            <strong>{r.requester?.first_name || 'Unknown'} {r.requester?.last_name || ''}</strong><br />
+            <em>{r.requester?.email || 'No email'}</em><br />
+            {r.motor} / {r.controller}<br />
             <small>User ID: {r.user_id}</small><br />
             Status: {r.status || 'pending'}
             <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
