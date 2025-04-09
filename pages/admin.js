@@ -7,34 +7,26 @@ export default function AdminPanel() {
   const [file, setFile] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
-  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const fetchRequests = async () => {
-      const { data: requestData, error: requestError } = await supabase
+      const { data, error } = await supabase
         .from('custom_requests')
-        .select('*')
+        .select(`
+          *,
+          user_profiles (
+            first_name,
+            last_name,
+            email
+          )
+        `)
         .order('created_at', { ascending: false });
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('user_id, first_name, last_name, email');
-
-      if (requestError || profileError) {
-        console.error('Error fetching data:', requestError || profileError);
-        return;
+      if (error) {
+        console.error('Error fetching requests:', error);
+      } else {
+        setRequests(data);
       }
-
-      const combined = requestData.map((r) => {
-        const profile = profileData.find((p) => p.user_id === r.user_id) || {};
-        return {
-          ...r,
-          requester_name: `${profile.first_name || 'Unknown'} ${profile.last_name || ''}`.trim(),
-          requester_email: profile.email || 'Unknown'
-        };
-      });
-
-      setRequests(combined);
     };
 
     fetchRequests();
@@ -59,7 +51,7 @@ export default function AdminPanel() {
       if (storageError) throw storageError;
 
       const {
-        data: { publicUrl }
+        data: { publicUrl },
       } = supabase.storage.from('tunes').getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
@@ -83,31 +75,16 @@ export default function AdminPanel() {
     }
   };
 
-  const filtered = search
-    ? requests.filter((r) =>
-        (r.motor + r.controller + r.requester_email + r.requester_name)
-          .toLowerCase()
-          .includes(search.toLowerCase())
-      )
-    : requests;
-
   return (
     <main style={{ padding: 40 }}>
       <h1>Admin Panel</h1>
-      <input
-        type="text"
-        placeholder="Search motor, controller, name or email..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ marginBottom: 20, width: '100%' }}
-      />
-
       <ul>
-        {filtered.map((r) => (
-          <li key={r.id} style={{ marginBottom: 12 }}>
-            <strong>{r.requester_name}</strong> ({r.requester_email})<br />
-            <strong>{r.motor} / {r.controller}</strong><br />
-            Status: <strong>{r.status || 'pending'}</strong>
+        {requests.map((r) => (
+          <li key={r.id} style={{ marginBottom: 16 }}>
+            <strong>{r.user_profiles?.first_name || 'Unknown'} {r.user_profiles?.last_name || ''}</strong><br />
+            <small>{r.user_profiles?.email || 'No email'}</small><br />
+            {r.motor} / {r.controller}<br />
+            Status: {r.status || 'pending'}
             <button style={{ marginLeft: 10 }} onClick={() => setSelectedRequest(r)}>
               Select
             </button>
@@ -122,8 +99,7 @@ export default function AdminPanel() {
           <button onClick={handleUpload} style={{ marginLeft: 10 }}>Upload</button>
           {uploadUrl && (
             <p>
-              ✅ Uploaded URL:{' '}
-              <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
+              ✅ Uploaded URL: <a href={uploadUrl} target="_blank" rel="noopener noreferrer">{uploadUrl}</a>
             </p>
           )}
           <p>{statusMsg}</p>
