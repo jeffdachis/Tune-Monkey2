@@ -16,10 +16,11 @@ export default function Dashboard() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push('/');
+        router.replace('/login');
         return;
       }
 
+      // Load profile
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('*')
@@ -37,13 +38,14 @@ export default function Dashboard() {
         setProfile(newProfile);
       }
 
+      // Load requests
       const { data: requestData } = await supabase
         .from('custom_requests')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      setRequests(requestData || []);
+      if (requestData) setRequests(requestData);
       setLoading(false);
     };
 
@@ -64,7 +66,7 @@ export default function Dashboard() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
-  const logout = async () => {
+  const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
   };
@@ -73,10 +75,8 @@ export default function Dashboard() {
 
   return (
     <main style={{ padding: 40, maxWidth: 700 }}>
-      <h1>Welcome, {profile.first_name || 'User'}!</h1>
-      <button onClick={logout} style={{ float: 'right', marginBottom: 20 }}>
-        🚪 Logout
-      </button>
+      <h1>Dashboard</h1>
+      <button onClick={handleLogout} style={{ float: 'right' }}>Logout</button>
 
       <section style={{ marginBottom: 40 }}>
         <h2>Your Profile</h2>
@@ -88,6 +88,7 @@ export default function Dashboard() {
         <input value={profile.phone || ''} onChange={(e) => updateField('phone', e.target.value)} />
         <label>Email</label>
         <input value={profile.email || ''} readOnly />
+
         <h3>Bike Info (optional)</h3>
         <label>Bike Brand</label>
         <input value={profile.bike_brand || ''} onChange={(e) => updateField('bike_brand', e.target.value)} />
@@ -108,6 +109,7 @@ export default function Dashboard() {
         </select>
         <label>Rider Weight (lbs)</label>
         <input value={profile.rider_weight || ''} onChange={(e) => updateField('rider_weight', e.target.value)} />
+
         <button onClick={saveProfile} disabled={saving} style={{ marginTop: 20 }}>
           {saving ? 'Saving...' : 'Save Profile'}
         </button>
@@ -118,6 +120,7 @@ export default function Dashboard() {
         <button onClick={() => router.push('/request')} style={{ marginBottom: 20 }}>
           ➕ Request New Tune
         </button>
+
         {requests.length === 0 ? (
           <p>No requests submitted yet.</p>
         ) : (
